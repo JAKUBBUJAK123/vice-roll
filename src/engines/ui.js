@@ -264,7 +264,7 @@ export function drawLeftHUD(ctx, state, uiCtx) {
   ctx.textAlign = 'center';
   ctx.font = '700 10px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = COLORS.textMuted;
-  ctx.fillText('TREASURY', bx + 67, my + 9);
+  ctx.fillText('MONEY', bx + 67, my + 9);
   ctx.font = '900 22px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = COLORS.goldLight;
   ctx.fillText('$' + state.money, bx + 67, my + 23);
@@ -421,7 +421,6 @@ export function drawModifierCardTray(ctx, state, uiCtx) {
   ctx.textAlign = 'right';
   ctx.font = '600 11px ui-sans-serif, system-ui, sans-serif';
   ctx.fillStyle = COLORS.textMuted;
-  ctx.fillText('Triggers Left → Right · Drag or Click Card to Reorder / Sell', x + w - 18, y + 10);
 
   const layout = getActiveCardLayout(state);
   if (state.activeCards.length === 0) {
@@ -696,7 +695,7 @@ export function drawDieInspectorTooltip(ctx, state, uiCtx) {
   ctx.font = '600 11px ui-sans-serif, system-ui, sans-serif';
   ctx.fillStyle = COLORS.textMuted;
   ctx.fillText(
-    curModMeta ? curModMeta.desc : 'Upgrade individual faces in the Bazaar Dice Workshop ($4)',
+    curModMeta ? curModMeta.desc : 'Upgrade individual faces in the Bazaar Dice Workshop',
     tx + tipW / 2,
     ty + tipH - 21
   );
@@ -729,7 +728,7 @@ export function drawCashOutPanel(ctx, state, uiCtx) {
   const rows = [
     { label: `${getStageLabel(state.stage)} Clear Bounty`, val: `+$${d.baseReward}`, show: state.cashOutReveal >= 0.15 },
     { label: `Unused Hands (${d.handsCount} × $1)`, val: `+$${d.handsBonus}`, show: state.cashOutReveal >= 0.45 },
-    { label: `Treasury Interest ($1 per $5 held, max $5)`, val: `+$${d.interest}`, show: state.cashOutReveal >= 0.75 }
+    { label: `MONEY Interest ($1 per $5 held, max $5)`, val: `+$${d.interest}`, show: state.cashOutReveal >= 0.75 }
   ];
 
   let ry = y + 96;
@@ -976,7 +975,7 @@ export function drawShopArena(ctx, state, uiCtx) {
   ctx.textBaseline = 'top';
   ctx.font = '800 11px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = '#38BDF8';
-  ctx.fillText('⚒ DICE WORKSHOP ($4)', wx + ww / 2, wy + 12);
+  ctx.fillText('⚒ DICE WORKSHOP', wx + ww / 2, wy + 12);
   ctx.font = '600 10px ui-sans-serif, system-ui, sans-serif';
   ctx.fillStyle = COLORS.textMuted;
   ctx.fillText('Craft onto any die face', wx + ww / 2, wy + 27);
@@ -1214,7 +1213,7 @@ export function drawTitleScreen(ctx, state, uiCtx) {
   ctx.textAlign = 'center';
   ctx.font = '600 15.5px ui-sans-serif, system-ui, sans-serif';
   ctx.fillStyle = COLORS.textMuted;
-  ctx.fillText('Forge custom dice faces · Redeem Vouchers · Dock 18 Arcana cards · Conquer 9 chapters + Endless', fanCx, 250);
+  ctx.fillText('Forge custom dice faces · Redeem Vouchers · Dock Arcana cards · Conquer chapters + Endless', fanCx, 250);
 
   registerButton(ctx, state, 'title_play', fanCx - 140, 286, 280, 62, 'ENTER PARLOR', {
     fill: '#0F766E',
@@ -1226,11 +1225,11 @@ export function drawTitleScreen(ctx, state, uiCtx) {
     onClick: startNewRun
   });
 
-  registerButton(ctx, state, 'title_guide', fanCx - 175, 594, 165, 42, 'HANDS & RULES', {
+  registerButton(ctx, state, 'title_guide', fanCx - 175, 650, 165, 42, 'HANDS & RULES', {
     fill: COLORS.railPanel, hoverFill: '#2D224A', fontSize: 13,
     onClick: () => { sfx.click(); state.modal = 'GUIDE'; }
   });
-  registerButton(ctx, state, 'title_crt', fanCx + 10, 594, 165, 42, state.crtEnabled ? 'CRT GLOW: ON' : 'CRT GLOW: OFF', {
+  registerButton(ctx, state, 'title_crt', fanCx + 10, 650, 165, 42, state.crtEnabled ? 'CRT GLOW: ON' : 'CRT GLOW: OFF', {
     fill: COLORS.railPanel, hoverFill: '#2D224A', fontSize: 13,
     onClick: () => { sfx.click(); state.crtEnabled = !state.crtEnabled; }
   });
@@ -1241,13 +1240,12 @@ export function drawTitleScreen(ctx, state, uiCtx) {
     ctx.fillText(
       `Best Hand: ${fmtNum(state.stats.bestHand)}   ·   Best Chapter: ${state.stats.bestStage}   ·   Runs Won: ${state.stats.wins}`,
       fanCx,
-      664
+      720
     );
   }
 
   ctx.font = '600 12.5px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = COLORS.textDim;
-  ctx.fillText('Click Dice (1–7) · Hover Die to Inspect Faces · Space Score · R Reroll · Esc Pause', fanCx, 718);
 }
 
 export function drawEndModal(ctx, state, isVictory, uiCtx) {
@@ -1507,7 +1505,7 @@ export function drawOverlayModal(ctx, state, uiCtx) {
 
     ctx.font = '800 12px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText('1–4 DICE HANDS (4-Dice Hands unlocked with Wide Grip Voucher)', x + 28, y + 64);
+    ctx.fillText('DICE HANDS', x + 220, y + 64);
 
     let hy = y + 88;
     for (const hid of HAND_ORDER.slice().reverse()) {
@@ -1530,7 +1528,7 @@ export function drawOverlayModal(ctx, state, uiCtx) {
       ctx.fillStyle = COLORS.textMuted;
       ctx.fillText('×', x + 412, hy + 17);
       ctx.fillStyle = COLORS.multLight;
-      ctx.fillText(`${hd.mult}`, x + 454, hy + 17);
+      ctx.fillText(`${hd.mult}`, x + 440, hy + 17);
       hy += 57;
     }
 
@@ -1538,7 +1536,7 @@ export function drawOverlayModal(ctx, state, uiCtx) {
     ctx.textAlign = 'left';
     ctx.font = '800 12px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText('DICE WORKSHOP UPGRADES ($4)', rx, y + 64);
+    ctx.fillText('DICE WORKSHOP UPGRADES', rx, y + 64);
 
     const upgList = [
       ['Pip Forger (+1 Val)', 'Permanently increases face value by +1 (7+)', '#F5CD79'],
@@ -1561,10 +1559,10 @@ export function drawOverlayModal(ctx, state, uiCtx) {
 
     ctx.font = '800 12px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText('CARD EDITIONS & VOUCHERS ($10)', rx, ey + 8);
+    ctx.fillText('CARD EDITIONS & VOUCHERS', rx, ey + 8);
 
     const edList = [
-      ['Foil / Holo / Poly / Neg', '+50 Base / +12 Mult / x1.5 Mult / +1 Dock Slot', '#C084FC'],
+      ['Gilded / Crimson / Prism / Void', '+50 Base / +12 Mult / x1.5 Mult / +1 Dock Slot', '#F5CD79'],
       ['Heavy Cup / Wide Grip', '+1 Pool Die (up to 7) / +1 Combo Die (4-dice hands)', '#2DD4BF'],
       ['Loaded Wrist / Extra Sleeve', '+1 Reroll per stage / +1 Hand per stage', '#38BDF8'],
       ['Card Shark / VIP Pass', '+1 Max Card Slot / +1 Bazaar Card Slot', '#FEF08A']
@@ -1583,6 +1581,5 @@ export function drawOverlayModal(ctx, state, uiCtx) {
     ctx.textAlign = 'center';
     ctx.font = '600 12px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText('Shortcuts: Keys 1–7 Toggle Dice · Hover Die to Inspect · Space Score · R Reroll · C Unlock · Esc Close', x + w / 2, y + h - 26);
   }
 }

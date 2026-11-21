@@ -11,7 +11,7 @@ export const SUIT_SYMBOLS = {
 export const CARD_CATALOG = [
   {
     id: 'KS', rank: 'K', suit: 'spades', name: 'King of Spades', rarity: 'rare', basePrice: 6,
-    tag: 'x2 / EVEN',
+    tag: 'MULT',
     desc: 'x2 Mult for each even die in the played hand.',
     evaluate(inst, ctx) {
       const events = [];
@@ -25,7 +25,7 @@ export const CARD_CATALOG = [
   },
   {
     id: 'AH', rank: 'A', suit: 'hearts', name: 'Ace of Hearts', rarity: 'uncommon', basePrice: 5,
-    tag: '+20M / 3',
+    tag: 'MULT',
     desc: '+20 Mult for each 3 in the played hand.',
     evaluate(inst, ctx) {
       const events = [];
@@ -39,7 +39,7 @@ export const CARD_CATALOG = [
   },
   {
     id: '7D', rank: '7', suit: 'diamonds', name: '7 of Diamonds', rarity: 'common', basePrice: 4,
-    tag: 'SUM 7 / 14',
+    tag: 'ECON',
     desc: '+50 Chips and +$2 if the played dice sum to 7 or 14.',
     evaluate(inst, ctx) {
       if (ctx.playedSum === 7 || ctx.playedSum === 14) {
@@ -50,14 +50,14 @@ export const CARD_CATALOG = [
   },
   {
     id: 'JC', rank: 'J', suit: 'clubs', name: 'Jack of Clubs', rarity: 'uncommon', basePrice: 5,
-    tag: 'RETRIG 1st',
+    tag: 'TRIGGER',
     desc: 'Retriggers the first scored die an additional time.',
     retriggerFirst: true,
     evaluate() { return []; }
   },
   {
     id: 'QS', rank: 'Q', suit: 'spades', name: 'Queen of Spades', rarity: 'uncommon', basePrice: 5,
-    tag: '+15M / UNPL',
+    tag: 'MULT',
     desc: '+15 Mult for each unplayed die left on the table.',
     evaluate(inst, ctx) {
       if (ctx.unplayedCount > 0) {
@@ -69,10 +69,10 @@ export const CARD_CATALOG = [
   },
   {
     id: '10H', rank: '10', suit: 'hearts', name: '10 of Hearts', rarity: 'uncommon', basePrice: 5,
-    tag: 'x1.5 STR',
-    desc: 'x1.5 Mult if the played hand is a Small or Large Straight.',
+    tag: 'MULT',
+    desc: 'x1.5 Mult if the played hand is a Ascend or Grand Ascend.',
     evaluate(inst, ctx) {
-      if (ctx.hand.id === 'SMALL_STRAIGHT' || ctx.hand.id === 'LARGE_STRAIGHT') {
+      if (ctx.hand.id === 'ASCEND' || ctx.hand.id === 'GRAND_ASCEND') {
         return [{ multMul: 1.5, label: 'x1.5 Mult', color: COLORS.multLight, sfx: 'xmult' }];
       }
       return [];
@@ -80,7 +80,7 @@ export const CARD_CATALOG = [
   },
   {
     id: '2C', rank: '2', suit: 'clubs', name: '2 of Clubs', rarity: 'common', basePrice: 4,
-    tag: '+12M / 1-2',
+    tag: 'MULT',
     desc: '+12 Mult for every 1 or 2 scored.',
     evaluate(inst, ctx) {
       const events = [];
@@ -94,7 +94,7 @@ export const CARD_CATALOG = [
   },
   {
     id: 'AS', rank: 'A', suit: 'spades', name: 'Ace of Spades', rarity: 'common', basePrice: 4,
-    tag: '+100C ODD',
+    tag: 'CHIP',
     desc: '+100 Chips if all played dice are odd.',
     evaluate(inst, ctx) {
       if (ctx.playedDice.length > 0 && ctx.playedDice.every(d => d.value % 2 === 1)) {
@@ -105,10 +105,10 @@ export const CARD_CATALOG = [
   },
   {
     id: 'KD', rank: 'K', suit: 'diamonds', name: 'King of Diamonds', rarity: 'rare', basePrice: 6,
-    tag: 'x3 TRIPS+',
-    desc: 'x3 Mult if the played hand is Three of a Kind, Perfect 18, or Four of a Kind.',
+    tag: 'MULT',
+    desc: 'x3 Mult if the played hand is Trio, Perfect 18, or Quartet.',
     evaluate(inst, ctx) {
-      if (ctx.hand.id === 'THREE_OF_A_KIND' || ctx.hand.id === 'PERFECT_18' || ctx.hand.id === 'FOUR_OF_A_KIND') {
+      if (ctx.hand.id === 'TRIO' || ctx.hand.id === 'PERFECT_18' || ctx.hand.id === 'QUARTET') {
         return [{ multMul: 3, label: 'x3 Mult', color: COLORS.multLight, sfx: 'xmult' }];
       }
       return [];
@@ -116,7 +116,7 @@ export const CARD_CATALOG = [
   },
   {
     id: '5H', rank: '5', suit: 'hearts', name: '5 of Hearts', rarity: 'uncommon', basePrice: 5,
-    tag: '+4M PER 5',
+    tag: 'MULT',
     desc: '+4 Mult permanently gained every time a 5 is scored.',
     isScaling: true,
     evaluate(inst, ctx) {
@@ -137,7 +137,7 @@ export const CARD_CATALOG = [
   },
   {
     id: '8S', rank: '8', suit: 'spades', name: '8 of Spades', rarity: 'uncommon', basePrice: 5,
-    tag: 'x2 0-ROLL',
+    tag: 'MULT',
     desc: 'x2 Mult if you have 0 Rerolls remaining.',
     evaluate(inst, ctx) {
       if (ctx.rerollsLeft === 0) {
@@ -148,7 +148,7 @@ export const CARD_CATALOG = [
   },
   {
     id: 'QH', rank: 'Q', suit: 'hearts', name: 'Queen of Hearts', rarity: 'rare', basePrice: 6,
-    tag: '+30C +8M /6',
+    tag: 'MULT',
     desc: '+30 Chips and +8 Mult for each 6 scored.',
     evaluate(inst, ctx) {
       const events = [];
@@ -162,10 +162,10 @@ export const CARD_CATALOG = [
   },
   {
     id: '4D', rank: '4', suit: 'diamonds', name: '4 of Diamonds', rarity: 'common', basePrice: 4,
-    tag: '+40C PAIR+',
-    desc: '+40 Chips if the played hand is a Pair or better.',
+    tag: '+40C DOUBLET+',
+    desc: '+40 Chips if the played hand is a Doublet or better.',
     evaluate(inst, ctx) {
-      if (ctx.hand.id !== 'HIGH_DIE') {
+      if (ctx.hand.id !== 'LONE_PIP') {
         return [{ chipsAdd: 40, label: '+40 Chips', color: COLORS.chipsLight, sfx: 'chips' }];
       }
       return [];
@@ -173,7 +173,7 @@ export const CARD_CATALOG = [
   },
   {
     id: '9C', rank: '9', suit: 'clubs', name: '9 of Clubs', rarity: 'common', basePrice: 4,
-    tag: '+$3 SUM 12+',
+    tag: 'ECON',
     desc: 'Earn +$3 if your played dice sum to 12 or higher.',
     evaluate(inst, ctx) {
       if (ctx.playedSum >= 12) {
@@ -184,7 +184,7 @@ export const CARD_CATALOG = [
   },
   {
     id: 'JD', rank: 'J', suit: 'diamonds', name: 'Jack of Diamonds', rarity: 'uncommon', basePrice: 5,
-    tag: '+6C PER $1',
+    tag: 'ECON',
     desc: '+6 Chips for every $1 in your bankroll when played.',
     evaluate(inst, ctx) {
       const bonus = ctx.money * 6;
@@ -196,7 +196,7 @@ export const CARD_CATALOG = [
   },
   {
     id: '3C', rank: '3', suit: 'clubs', name: '3 of Clubs', rarity: 'uncommon', basePrice: 5,
-    tag: 'x1.5 UNIQ',
+    tag: 'UNIQUE',
     desc: 'x1.5 Mult if at least 3 dice are played and all show different numbers.',
     evaluate(inst, ctx) {
       if (ctx.playedDice.length >= 3) {
@@ -210,14 +210,14 @@ export const CARD_CATALOG = [
   },
   {
     id: '6S', rank: '6', suit: 'spades', name: '6 of Spades', rarity: 'rare', basePrice: 6,
-    tag: 'RETRIG 6s',
+    tag: 'TRIGGER',
     desc: 'Retriggers every scored 6 an additional time.',
     retriggerSix: true,
     evaluate() { return []; }
   },
   {
     id: 'AD', rank: 'A', suit: 'diamonds', name: 'Ace of Diamonds', rarity: 'rare', basePrice: 6,
-    tag: 'x2.5 FINAL',
+    tag: 'FINAL',
     desc: 'x2.5 Mult when played on your final Hand of the stage.',
     evaluate(inst, ctx) {
       if (ctx.handsLeftAfterPlay === 0) {

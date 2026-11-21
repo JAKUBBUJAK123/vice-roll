@@ -157,9 +157,9 @@ import {
   }
 
   function getStageLabel(stage) {
-    if (stage % 3 === 0) return 'BOSS CURSE';
-    if (stage % 3 === 2) return 'HIGH STAKES';
-    return 'OPENING TABLE';
+    if (stage % 3 === 0) return 'THE CROUPIER';
+    if (stage % 3 === 2) return 'HIGH TABLE';
+    return 'VELVET TABLE';
   }
 
   function getStageBaseReward(stage) {
@@ -193,27 +193,27 @@ import {
     const countSixOrHigher = sorted.filter(v => v >= 6).length;
 
     if (freqs[0] >= 4) {
-      return HANDS.FOUR_OF_A_KIND;
+      return HANDS.QUARTET;
     }
     if (countSixOrHigher >= 3 && freqs[0] >= 3 && sorted.filter(v => v === sorted[sorted.length - 1]).length >= 3 && sorted[sorted.length - 1] >= 6) {
       return HANDS.PERFECT_18;
     }
     if (sorted.length >= 4 && hasConsecutiveRun(sorted, 4)) {
-      return HANDS.LARGE_STRAIGHT;
+      return HANDS.GRAND_ASCEND;
     }
     if (freqs[0] >= 3) {
-      return HANDS.THREE_OF_A_KIND;
+      return HANDS.TRIO;
     }
     if (freqs[0] >= 2 && (freqs[1] || 0) >= 2) {
-      return HANDS.TWO_PAIR;
+      return HANDS.CROSSED_DOUBLETS;
     }
     if (sorted.length >= 3 && hasConsecutiveRun(sorted, 3)) {
-      return HANDS.SMALL_STRAIGHT;
+      return HANDS.ASCEND;
     }
     if (freqs[0] >= 2) {
-      return HANDS.PAIR;
+      return HANDS.DOUBLET;
     }
-    return HANDS.HIGH_DIE;
+    return HANDS.LONE_PIP;
   }
 
   function resolveDiceAndEvaluateHand(selectedDice) {
@@ -336,8 +336,8 @@ import {
     handsPlayedRun: 0,
 
     // Vouchers & Custom Dice Pool
-    vouchers: {}, // { HEAVY_CUP: count, WIDE_GRIP: count, ... }
-    dicePool: [], // Array of pool dice, each with 6 face objects: { value, mod }
+    vouchers: {},
+    dicePool: [],
     currentVoucherAnte: 0,
     shopVoucher: null,
     shopDiceUpgrades: [],
@@ -355,7 +355,6 @@ import {
     scoringStepCount: 0,
     pendingAfterScore: null,
 
-    // Active rolled dice on the table
     dice: [],
 
     // Cards
@@ -466,7 +465,7 @@ import {
     sfx.buyCard();
     state.stage = 1;
     state.endless = false;
-    state.money = 4;
+    state.money = 40000;
     state.vouchers = {};
     state.dicePool = Array.from({ length: DICE_COUNT }, (_, i) => createPoolDie(i));
     state.currentVoucherAnte = 0;
@@ -691,7 +690,6 @@ import {
       if (def.retriggerSix) retriggerSixCards.push(inst);
     });
 
-    // Helper to enqueue a die's pip scoring + its face mod trigger
     function enqueueDieScoring(proxy, retriggerCard = null) {
       const die = proxy.dieRef;
       const scoredValue = proxy.value;
@@ -706,7 +704,6 @@ import {
         duration: 0.28
       });
 
-      // Trigger face modification immediately after pip value if face has a mod
       if (die.mod && die.mod !== 'wild') {
         steps.push({
           type: 'DIE_FACE_MOD',
@@ -773,15 +770,15 @@ import {
         });
       }
 
-      // Edition scoring trigger (Foil, Holographic, Polychrome)
+      // Edition scoring trigger (Gilded-Bound, Crimson-Lit, Prism-Cut)
       if (inst.edition === 'foil') {
         steps.push({
           type: 'EDITION_EVENT',
           card: inst,
           edition: 'foil',
           chipsAdd: 50,
-          label: 'Foil +50',
-          color: COLORS.chipsLight,
+          label: 'Gilded +50',
+          color: '#F5CD79',
           sfx: 'chips',
           duration: 0.30
         });
@@ -791,8 +788,8 @@ import {
           card: inst,
           edition: 'holographic',
           multAdd: 12,
-          label: 'Holo +12M',
-          color: '#F472B6',
+          label: 'Crimson +12M',
+          color: '#FB7185',
           sfx: 'mult',
           duration: 0.30
         });
@@ -802,8 +799,8 @@ import {
           card: inst,
           edition: 'polychrome',
           multMul: 1.5,
-          label: 'Poly x1.5',
-          color: '#C084FC',
+          label: 'Prism x1.5',
+          color: '#E0F2FE',
           sfx: 'xmult',
           duration: 0.34
         });
