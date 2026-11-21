@@ -1,0 +1,6 @@
+{
+  "name": "Velvet Roll",
+  "description": "A Balatro-inspired roguelike dice-and-card deckbuilder built in a single self-contained HTML5 Canvas file with tactile pixel-vector visuals, 18 modifier cards, 5 editions, and procedural Web Audio.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

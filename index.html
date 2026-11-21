@@ -1,0 +1,3622 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Velvet Roll — Roguelike Dice & Card Deckbuilder</title>
+  <meta name="description" content="A Balatro-inspired roguelike dice-and-card deckbuilder built in a single self-contained HTML5 Canvas file with tactile pixel-vector visuals, 18 modifier cards, 5 editions, and procedural Web Audio." />
+  <meta property="og:title" content="Velvet Roll — Roguelike Dice & Card Deckbuilder" />
+  <meta property="og:description" content="Roll 5 dice, sculpt 3-dice scoring hands, stack 18 playing-card modifiers across 5 rare editions, and conquer a 9-stage roguelike run plus Endless Mode." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #061510;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    #game-canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      cursor: default;
+    }
+  </style>
+</head>
+<body>
+<canvas id="game-canvas" aria-label="Velvet Roll Roguelike Dice and Card Deckbuilder"></canvas>
+<script>
+(() => {
+  'use strict';
+
+  // =========================================================================
+  // 1. CONSTANTS, THEME PALETTE & GAME DATA
+  // =========================================================================
+  const LOGICAL_W = 1280;
+  const LOGICAL_H = 760;
+  const BASE_MAX_SLOTS = 5;
+  const MAX_SELECT_DICE = 3;
+  const BASE_HANDS = 4;
+  const BASE_REROLLS = 3;
+  const SHOP_REROLL_COST = 3;
+  const MAX_INTEREST = 5;
+  const STORAGE_KEY = 'velvet_roll_stats_v1';
+
+  const STAGE_TARGETS = [
+    300, 800, 2000,
+    4500, 10000, 22000,
+    48000, 105000, 240000
+  ];
+
+  const COLORS = {
+    feltCenter: '#0F3D2D',
+    feltMid: '#0A291F',
+    feltEdge: '#04120D',
+    railBg: '#0E171E',
+    railPanel: '#14212B',
+    railBorder: '#284050',
+    railBorderBright: '#3E6075',
+    brass: '#D9A441',
+    brassBright: '#F6CA65',
+    ivory: '#F7F3E8',
+    ivoryShade: '#D7CEB8',
+    ivoryDeep: '#B3A78E',
+    chipsBlue: '#2563EB',
+    chipsLight: '#60A5FA',
+    chipsDark: '#1E3A8A',
+    multRed: '#DC2626',
+    multLight: '#F87171',
+    multDark: '#7F1D1D',
+    gold: '#F59E0B',
+    goldLight: '#FDE047',
+    emerald: '#10B981',
+    emeraldDark: '#065F46',
+    textMain: '#F3F7F5',
+    textMuted: '#8CA3B0',
+    textDim: '#5B7280',
+    suitSpades: '#182230',
+    suitHearts: '#D62839',
+    suitDiamonds: '#E85D04',
+    suitClubs: '#0E7C66',
+    negBg: '#101424',
+    negBorder: '#7C3AED',
+    negSpades: '#38BDF8',
+    negHearts: '#F472B6',
+    negDiamonds: '#FBBF24',
+    negClubs: '#34D399'
+  };
+
+  const SUIT_SYMBOLS = {
+    spades: '♠',
+    hearts: '♥',
+    diamonds: '♦',
+    clubs: '♣'
+  };
+
+  const HANDS = {
+    HIGH_DIE: { id: 'HIGH_DIE', name: 'High Die', chips: 10, mult: 1, desc: 'Any 1–3 dice' },
+    PAIR: { id: 'PAIR', name: 'Pair', chips: 25, mult: 2, desc: '2 matching dice (e.g. 4-4-2)' },
+    SMALL_STRAIGHT: { id: 'SMALL_STRAIGHT', name: 'Small Straight', chips: 45, mult: 4, desc: '3 consecutive dice (e.g. 2-3-4)' },
+    THREE_OF_A_KIND: { id: 'THREE_OF_A_KIND', name: 'Three of a Kind', chips: 75, mult: 6, desc: '3 matching dice (e.g. 5-5-5)' },
+    PERFECT_18: { id: 'PERFECT_18', name: 'Perfect 18', chips: 120, mult: 10, desc: 'Three sixes (6-6-6)' }
+  };
+
+  const HAND_ORDER = ['HIGH_DIE', 'PAIR', 'SMALL_STRAIGHT', 'THREE_OF_A_KIND', 'PERFECT_18'];
+
+  const EDITIONS = {
+    standard: {
+      id: 'standard', name: 'Standard', weight: 80, priceAdd: 0,
+      color: '#CBD5E1', bonusText: ''
+    },
+    foil: {
+      id: 'foil', name: 'Foil', weight: 8, priceAdd: 2,
+      color: '#60A5FA', bonusText: '+50 Chips when triggered'
+    },
+    holographic: {
+      id: 'holographic', name: 'Holographic', weight: 7, priceAdd: 2,
+      color: '#F472B6', bonusText: '+12 Mult when triggered'
+    },
+    polychrome: {
+      id: 'polychrome', name: 'Polychrome', weight: 3, priceAdd: 3,
+      color: '#C084FC', bonusText: 'x1.5 Mult when triggered'
+    },
+    negative: {
+      id: 'negative', name: 'Negative', weight: 2, priceAdd: 3,
+      color: '#38BDF8', bonusText: '+1 Max Card Slot (uses 0 slots)'
+    }
+  };
+
+  const BOSS_MODIFIERS = [
+    {
+      id: 'EVEN_ZERO',
+      name: 'The Even Drain',
+      short: 'Even dice give 0 Chips',
+      desc: 'All even dice (2, 4, 6) contribute 0 pip Chips when scored.'
+    },
+    {
+      id: 'TWO_REROLLS',
+      name: 'The Tight Grip',
+      short: 'Only 2 Rerolls allowed',
+      desc: 'Start this stage with 2 Rerolls instead of 3.'
+    },
+    {
+      id: 'ODD_ZERO',
+      name: 'The Odd Tax',
+      short: 'Odd dice give 0 Chips',
+      desc: 'All odd dice (1, 3, 5) contribute 0 pip Chips when scored.'
+    },
+    {
+      id: 'DISABLE_FIRST',
+      name: 'The Blind Eye',
+      short: 'First card slot disabled',
+      desc: 'Your leftmost modifier card is debuffed. Reorder cards to adapt!'
+    },
+    {
+      id: 'THREE_HANDS',
+      name: 'The Short Stack',
+      short: 'Only 3 Hands allowed',
+      desc: 'Start this stage with 3 Hands instead of 4.'
+    },
+    {
+      id: 'MIN_TWO_DICE',
+      name: 'The Heavy Felt',
+      short: 'Must play at least 2 dice',
+      desc: 'Single-die hands are blocked; select 2 or 3 dice to score.'
+    }
+  ];
+
+  // 18 Distinct Standard Playing Cards (all 12 prompt cards verbatim + 6 synergistic additions)
+  const CARD_CATALOG = [
+    {
+      id: 'KS', rank: 'K', suit: 'spades', name: 'King of Spades', rarity: 'rare', basePrice: 6,
+      tag: 'x2 / EVEN',
+      desc: 'x2 Mult for each even die in the played hand.',
+      evaluate(inst, ctx) {
+        const events = [];
+        for (const d of ctx.scoredDice) {
+          if (d.value % 2 === 0) {
+            events.push({ multMul: 2, label: 'x2 Mult', color: COLORS.multLight, sfx: 'xmult', dieId: d.id });
+          }
+        }
+        return events;
+      }
+    },
+    {
+      id: 'AH', rank: 'A', suit: 'hearts', name: 'Ace of Hearts', rarity: 'uncommon', basePrice: 5,
+      tag: '+20M / 3',
+      desc: '+20 Mult for each 3 in the played hand.',
+      evaluate(inst, ctx) {
+        const events = [];
+        for (const d of ctx.scoredDice) {
+          if (d.value === 3) {
+            events.push({ multAdd: 20, label: '+20 Mult', color: COLORS.multLight, sfx: 'mult', dieId: d.id });
+          }
+        }
+        return events;
+      }
+    },
+    {
+      id: '7D', rank: '7', suit: 'diamonds', name: '7 of Diamonds', rarity: 'common', basePrice: 4,
+      tag: 'SUM 7 / 14',
+      desc: '+50 Chips and +$2 if the played dice sum to 7 or 14.',
+      evaluate(inst, ctx) {
+        if (ctx.playedSum === 7 || ctx.playedSum === 14) {
+          return [{ chipsAdd: 50, moneyAdd: 2, label: '+50 & +$2', color: COLORS.goldLight, sfx: 'money' }];
+        }
+        return [];
+      }
+    },
+    {
+      id: 'JC', rank: 'J', suit: 'clubs', name: 'Jack of Clubs', rarity: 'uncommon', basePrice: 5,
+      tag: 'RETRIG 1st',
+      desc: 'Retriggers the first scored die an additional time.',
+      retriggerFirst: true,
+      evaluate() { return []; }
+    },
+    {
+      id: 'QS', rank: 'Q', suit: 'spades', name: 'Queen of Spades', rarity: 'uncommon', basePrice: 5,
+      tag: '+15M / UNPL',
+      desc: '+15 Mult for each unplayed die left on the table.',
+      evaluate(inst, ctx) {
+        if (ctx.unplayedCount > 0) {
+          const total = ctx.unplayedCount * 15;
+          return [{ multAdd: total, label: '+' + total + ' Mult', color: COLORS.multLight, sfx: 'mult' }];
+        }
+        return [];
+      }
+    },
+    {
+      id: '10H', rank: '10', suit: 'hearts', name: '10 of Hearts', rarity: 'uncommon', basePrice: 5,
+      tag: 'x1.5 STR',
+      desc: 'x1.5 Mult if the played hand is a Small Straight.',
+      evaluate(inst, ctx) {
+        if (ctx.hand.id === 'SMALL_STRAIGHT') {
+          return [{ multMul: 1.5, label: 'x1.5 Mult', color: COLORS.multLight, sfx: 'xmult' }];
+        }
+        return [];
+      }
+    },
+    {
+      id: '2C', rank: '2', suit: 'clubs', name: '2 of Clubs', rarity: 'common', basePrice: 4,
+      tag: '+12M / 1-2',
+      desc: '+12 Mult for every 1 or 2 scored.',
+      evaluate(inst, ctx) {
+        const events = [];
+        for (const d of ctx.scoredDice) {
+          if (d.value === 1 || d.value === 2) {
+            events.push({ multAdd: 12, label: '+12 Mult', color: COLORS.multLight, sfx: 'mult', dieId: d.id });
+          }
+        }
+        return events;
+      }
+    },
+    {
+      id: 'AS', rank: 'A', suit: 'spades', name: 'Ace of Spades', rarity: 'common', basePrice: 4,
+      tag: '+100C ODD',
+      desc: '+100 Chips if all played dice are odd.',
+      evaluate(inst, ctx) {
+        if (ctx.playedDice.length > 0 && ctx.playedDice.every(d => d.value % 2 === 1)) {
+          return [{ chipsAdd: 100, label: '+100 Chips', color: COLORS.chipsLight, sfx: 'chips' }];
+        }
+        return [];
+      }
+    },
+    {
+      id: 'KD', rank: 'K', suit: 'diamonds', name: 'King of Diamonds', rarity: 'rare', basePrice: 6,
+      tag: 'x3 TRIPS',
+      desc: 'x3 Mult if the played hand is Three of a Kind (or Perfect 18).',
+      evaluate(inst, ctx) {
+        if (ctx.hand.id === 'THREE_OF_A_KIND' || ctx.hand.id === 'PERFECT_18') {
+          return [{ multMul: 3, label: 'x3 Mult', color: COLORS.multLight, sfx: 'xmult' }];
+        }
+        return [];
+      }
+    },
+    {
+      id: '5H', rank: '5', suit: 'hearts', name: '5 of Hearts', rarity: 'uncommon', basePrice: 5,
+      tag: '+4M PER 5',
+      desc: '+4 Mult permanently gained every time a 5 is scored.',
+      isScaling: true,
+      evaluate(inst, ctx) {
+        const events = [];
+        let fives = 0;
+        for (const d of ctx.scoredDice) {
+          if (d.value === 5) {
+            fives++;
+            events.push({ scaleAdd: 4, label: 'Upgrade +4!', color: COLORS.goldLight, sfx: 'money', dieId: d.id });
+          }
+        }
+        const totalMult = (inst.scalingBonus || 0) + fives * 4;
+        if (totalMult > 0) {
+          events.push({ multAdd: totalMult, label: '+' + totalMult + ' Mult', color: COLORS.multLight, sfx: 'mult' });
+        }
+        return events;
+      }
+    },
+    {
+      id: '8S', rank: '8', suit: 'spades', name: '8 of Spades', rarity: 'uncommon', basePrice: 5,
+      tag: 'x2 0-ROLL',
+      desc: 'x2 Mult if you have 0 Rerolls remaining.',
+      evaluate(inst, ctx) {
+        if (ctx.rerollsLeft === 0) {
+          return [{ multMul: 2, label: 'x2 Mult', color: COLORS.multLight, sfx: 'xmult' }];
+        }
+        return [];
+      }
+    },
+    {
+      id: 'QH', rank: 'Q', suit: 'hearts', name: 'Queen of Hearts', rarity: 'rare', basePrice: 6,
+      tag: '+30C +8M /6',
+      desc: '+30 Chips and +8 Mult for each 6 scored.',
+      evaluate(inst, ctx) {
+        const events = [];
+        for (const d of ctx.scoredDice) {
+          if (d.value === 6) {
+            events.push({ chipsAdd: 30, multAdd: 8, label: '+30C +8M', color: COLORS.multLight, sfx: 'mult', dieId: d.id });
+          }
+        }
+        return events;
+      }
+    },
+    {
+      id: '4D', rank: '4', suit: 'diamonds', name: '4 of Diamonds', rarity: 'common', basePrice: 4,
+      tag: '+40C PAIR+',
+      desc: '+40 Chips if the played hand is a Pair or better.',
+      evaluate(inst, ctx) {
+        if (ctx.hand.id !== 'HIGH_DIE') {
+          return [{ chipsAdd: 40, label: '+40 Chips', color: COLORS.chipsLight, sfx: 'chips' }];
+        }
+        return [];
+      }
+    },
+    {
+      id: '9C', rank: '9', suit: 'clubs', name: '9 of Clubs', rarity: 'common', basePrice: 4,
+      tag: '+$3 SUM 12+',
+      desc: 'Earn +$3 if your played dice sum to 12 or higher.',
+      evaluate(inst, ctx) {
+        if (ctx.playedSum >= 12) {
+          return [{ moneyAdd: 3, label: '+$3', color: COLORS.goldLight, sfx: 'money' }];
+        }
+        return [];
+      }
+    },
+    {
+      id: 'JD', rank: 'J', suit: 'diamonds', name: 'Jack of Diamonds', rarity: 'uncommon', basePrice: 5,
+      tag: '+6C PER $1',
+      desc: '+6 Chips for every $1 in your bankroll when played.',
+      evaluate(inst, ctx) {
+        const bonus = ctx.money * 6;
+        if (bonus > 0) {
+          return [{ chipsAdd: bonus, label: '+' + bonus + ' Chips', color: COLORS.chipsLight, sfx: 'chips' }];
+        }
+        return [];
+      }
+    },
+    {
+      id: '3C', rank: '3', suit: 'clubs', name: '3 of Clubs', rarity: 'uncommon', basePrice: 5,
+      tag: 'x1.5 UNIQ',
+      desc: 'x1.5 Mult if 3 dice are played and all 3 show different numbers.',
+      evaluate(inst, ctx) {
+        if (ctx.playedDice.length === 3) {
+          const vals = new Set(ctx.playedDice.map(d => d.value));
+          if (vals.size === 3) {
+            return [{ multMul: 1.5, label: 'x1.5 Mult', color: COLORS.multLight, sfx: 'xmult' }];
+          }
+        }
+        return [];
+      }
+    },
+    {
+      id: '6S', rank: '6', suit: 'spades', name: '6 of Spades', rarity: 'rare', basePrice: 6,
+      tag: 'RETRIG 6s',
+      desc: 'Retriggers every scored 6 an additional time.',
+      retriggerSix: true,
+      evaluate() { return []; }
+    },
+    {
+      id: 'AD', rank: 'A', suit: 'diamonds', name: 'Ace of Diamonds', rarity: 'rare', basePrice: 6,
+      tag: 'x2.5 FINAL',
+      desc: 'x2.5 Mult when played on your final Hand of the stage.',
+      evaluate(inst, ctx) {
+        if (ctx.handsLeftAfterPlay === 0) {
+          return [{ multMul: 2.5, label: 'x2.5 Mult', color: COLORS.multLight, sfx: 'xmult' }];
+        }
+        return [];
+      }
+    }
+  ];
+
+  const CARD_BY_ID = Object.fromEntries(CARD_CATALOG.map(c => [c.id, c]));
+
+  // =========================================================================
+  // 2. PROCEDURAL WEB AUDIO API SYNTHESIZER
+  // =========================================================================
+  class SoundEngine {
+    constructor() {
+      this.ctx = null;
+      this.muted = false;
+      this.noiseBuf = null;
+    }
+
+    unlock() {
+      if (!this.ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        this.ctx = new AC();
+        const len = Math.floor(this.ctx.sampleRate * 0.25);
+        this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+        const data = this.noiseBuf.getChannelData(0);
+        for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      }
+      if (this.ctx && this.ctx.state === 'suspended') {
+        this.ctx.resume().catch(() => {});
+      }
+    }
+
+    tone(freq, dur, type = 'triangle', gainVal = 0.14, delay = 0, freqEnd = null) {
+      if (this.muted) return;
+      this.unlock();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime + delay;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, now);
+      if (freqEnd !== null) {
+        osc.frequency.exponentialRampToValueAtTime(Math.max(20, freqEnd), now + dur);
+      }
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(gainVal, now + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + dur + 0.02);
+    }
+
+    noise(dur, filterFreq = 1200, q = 2.0, gainVal = 0.12, delay = 0) {
+      if (this.muted) return;
+      this.unlock();
+      if (!this.ctx || !this.noiseBuf) return;
+      const now = this.ctx.currentTime + delay;
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.noiseBuf;
+      const filt = this.ctx.createBiquadFilter();
+      filt.type = 'bandpass';
+      filt.frequency.setValueAtTime(filterFreq, now);
+      filt.Q.setValueAtTime(q, now);
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(gainVal, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      src.connect(filt);
+      filt.connect(gain);
+      gain.connect(this.ctx.destination);
+      src.start(now);
+      src.stop(now + dur + 0.02);
+    }
+
+    click() {
+      this.tone(520, 0.045, 'triangle', 0.08, 0, 320);
+    }
+
+    dieSelect(selected) {
+      if (selected) {
+        this.tone(390, 0.075, 'triangle', 0.12, 0, 620);
+      } else {
+        this.tone(360, 0.075, 'triangle', 0.09, 0, 220);
+      }
+    }
+
+    diceRoll(count = 5) {
+      const hits = Math.min(8, Math.max(3, count + 2));
+      for (let i = 0; i < hits; i++) {
+        const d = i * 0.05 + Math.random() * 0.025;
+        const f = 750 + Math.random() * 900;
+        this.noise(0.045, f, 3.2, 0.11 - i * 0.008, d);
+        this.tone(210 + Math.random() * 140, 0.04, 'triangle', 0.07, d, 110);
+      }
+    }
+
+    cardSnap() {
+      this.noise(0.04, 1900, 1.8, 0.09, 0);
+      this.tone(440, 0.06, 'sine', 0.08, 0, 580);
+    }
+
+    buyCard() {
+      this.tone(660, 0.09, 'triangle', 0.13, 0);
+      this.tone(880, 0.12, 'triangle', 0.13, 0.065);
+      this.tone(1320, 0.18, 'sine', 0.11, 0.12);
+    }
+
+    sellCard() {
+      this.tone(1180, 0.08, 'sine', 0.12, 0);
+      this.tone(1560, 0.14, 'triangle', 0.11, 0.055);
+    }
+
+    error() {
+      this.tone(155, 0.14, 'sawtooth', 0.08, 0, 115);
+    }
+
+    scoreStep(stepIdx, kind) {
+      // Escalating pentatonic pitch ladder
+      const semis = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26, 28, 31, 33, 36];
+      const semi = semis[Math.min(semis.length - 1, stepIdx)];
+      const baseFreq = 392 * Math.pow(2, semi / 12);
+
+      if (kind === 'chips') {
+        this.tone(baseFreq, 0.13, 'triangle', 0.13, 0);
+        this.tone(baseFreq * 2, 0.09, 'sine', 0.06, 0.015);
+      } else if (kind === 'mult') {
+        this.tone(baseFreq * 0.9, 0.16, 'sawtooth', 0.07, 0);
+        this.tone(baseFreq * 1.25, 0.16, 'triangle', 0.12, 0.01);
+      } else if (kind === 'xmult') {
+        this.tone(baseFreq, 0.22, 'sawtooth', 0.08, 0, baseFreq * 1.15);
+        this.tone(baseFreq * 1.5, 0.24, 'triangle', 0.14, 0.02);
+        this.tone(baseFreq * 2, 0.26, 'sine', 0.10, 0.04);
+      } else if (kind === 'money') {
+        this.tone(1318, 0.09, 'sine', 0.11, 0);
+        this.tone(1760, 0.14, 'triangle', 0.11, 0.055);
+      } else if (kind === 'retrigger') {
+        this.tone(540, 0.06, 'square', 0.06, 0, 720);
+        this.tone(720, 0.07, 'triangle', 0.09, 0.045);
+      } else if (kind === 'debuff') {
+        this.tone(140, 0.16, 'sawtooth', 0.09, 0, 95);
+      } else {
+        this.tone(baseFreq, 0.12, 'triangle', 0.11, 0);
+      }
+    }
+
+    totalSlam(beatTarget) {
+      this.tone(110, 0.28, 'sine', 0.22, 0, 48);
+      this.noise(0.11, 420, 1.2, 0.14, 0);
+      if (beatTarget) {
+        const chord = [523.25, 659.25, 783.99, 1046.5];
+        chord.forEach((f, i) => {
+          this.tone(f, 0.34, 'triangle', 0.12, 0.05 + i * 0.055);
+        });
+      } else {
+        this.tone(330, 0.16, 'triangle', 0.12, 0.04, 392);
+      }
+    }
+
+    scoreTick() {
+      this.tone(780 + Math.random() * 140, 0.025, 'sine', 0.04, 0);
+    }
+
+    bossIntro() {
+      this.tone(130.81, 0.45, 'sawtooth', 0.09, 0, 123.47);
+      this.tone(155.56, 0.45, 'triangle', 0.10, 0.08);
+      this.tone(196.0, 0.55, 'sawtooth', 0.08, 0.16, 185.0);
+    }
+
+    victory() {
+      const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98];
+      notes.forEach((f, i) => {
+        this.tone(f, 0.42, 'triangle', 0.12, i * 0.08);
+        this.tone(f * 0.5, 0.36, 'sine', 0.07, i * 0.08);
+      });
+    }
+
+    gameOver() {
+      const notes = [392.0, 349.23, 311.13, 261.63];
+      notes.forEach((f, i) => {
+        this.tone(f, 0.35, 'sawtooth', 0.07, i * 0.12, f * 0.94);
+      });
+    }
+  }
+
+  const sfx = new SoundEngine();
+
+  // =========================================================================
+  // 3. HELPER FUNCTIONS (HAND EVAL, EDITIONS, PERSISTENCE, DRAWING)
+  // =========================================================================
+  let nextUid = 1;
+
+  function loadStats() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          bestHand: Number(parsed.bestHand) || 0,
+          bestStage: Number(parsed.bestStage) || 0,
+          wins: Number(parsed.wins) || 0
+        };
+      }
+    } catch (_) {}
+    return { bestHand: 0, bestStage: 0, wins: 0 };
+  }
+
+  function saveStats(stats) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
+    } catch (_) {}
+  }
+
+  function getStageTarget(stage) {
+    if (stage <= STAGE_TARGETS.length) return STAGE_TARGETS[stage - 1];
+    let v = STAGE_TARGETS[STAGE_TARGETS.length - 1];
+    for (let s = STAGE_TARGETS.length + 1; s <= stage; s++) {
+      v = Math.round((v * 2.25) / 100) * 100;
+    }
+    return v;
+  }
+
+  function getStageLabel(stage) {
+    if (stage % 3 === 0) return 'BOSS BLIND';
+    if (stage % 3 === 2) return 'BIG BLIND';
+    return 'SMALL BLIND';
+  }
+
+  function getStageBaseReward(stage) {
+    if (stage % 3 === 0) return 6;
+    if (stage % 3 === 2) return 4;
+    return 3;
+  }
+
+  function evaluateHand(diceValues) {
+    if (!diceValues || diceValues.length === 0) return null;
+    const sorted = [...diceValues].sort((a, b) => a - b);
+    const counts = {};
+    for (const v of sorted) counts[v] = (counts[v] || 0) + 1;
+    const freqs = Object.values(counts).sort((a, b) => b - a);
+
+    if (sorted.length === 3 && sorted[0] === 6 && sorted[1] === 6 && sorted[2] === 6) {
+      return HANDS.PERFECT_18;
+    }
+    if (freqs[0] >= 3) {
+      return HANDS.THREE_OF_A_KIND;
+    }
+    if (sorted.length === 3 && sorted[1] === sorted[0] + 1 && sorted[2] === sorted[1] + 1) {
+      return HANDS.SMALL_STRAIGHT;
+    }
+    if (freqs[0] >= 2) {
+      return HANDS.PAIR;
+    }
+    return HANDS.HIGH_DIE;
+  }
+
+  function rollEdition() {
+    const r = Math.random() * 100;
+    if (r < 80) return 'standard';
+    if (r < 88) return 'foil';
+    if (r < 95) return 'holographic';
+    if (r < 98) return 'polychrome';
+    return 'negative';
+  }
+
+  function createCardInstance(cardId, forcedEdition = null) {
+    const def = CARD_BY_ID[cardId];
+    const edition = forcedEdition || rollEdition();
+    const edDef = EDITIONS[edition];
+    const rawPrice = def.basePrice + edDef.priceAdd;
+    const price = Math.max(4, Math.min(8, rawPrice));
+    const sellValue = Math.max(2, Math.floor(price / 2));
+    return {
+      uid: nextUid++,
+      cardId: def.id,
+      edition,
+      price,
+      sellValue,
+      scalingBonus: 0,
+      // Visual state
+      x: 0, y: 0,
+      targetX: 0, targetY: 0,
+      scale: 1,
+      bounce: 0,
+      tilt: 0,
+      flash: 0,
+      pulseColor: '#FFFFFF'
+    };
+  }
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function fmtNum(n) { return Math.round(n).toLocaleString('en-US'); }
+  function fmtMult(n) {
+    const r = Math.round(n * 10) / 10;
+    return Number.isInteger(r) ? String(r) : r.toFixed(1);
+  }
+  function hitTest(px, py, rect) {
+    return rect && px >= rect.x && px <= rect.x + rect.w && py >= rect.y && py <= rect.y + rect.h;
+  }
+
+  // Crisp pixel-bevel rounded rectangle path (stepped retro-modern corners)
+  function tracePixelRect(ctx, x, y, w, h, r = 6) {
+    const c = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + c, y);
+    ctx.lineTo(x + w - c, y);
+    ctx.lineTo(x + w, y + c);
+    ctx.lineTo(x + w, y + h - c);
+    ctx.lineTo(x + w - c, y + h);
+    ctx.lineTo(x + c, y + h);
+    ctx.lineTo(x, y + h - c);
+    ctx.lineTo(x, y + c);
+    ctx.closePath();
+  }
+
+  function drawBevelPanel(ctx, x, y, w, h, opts = {}) {
+    const {
+      fill = COLORS.railPanel,
+      border = COLORS.railBorder,
+      topHighlight = 'rgba(255,255,255,0.08)',
+      bottomShadow = 'rgba(0,0,0,0.45)',
+      lip = 4,
+      r = 8,
+      glow = null
+    } = opts;
+
+    ctx.save();
+    if (glow) {
+      ctx.shadowColor = glow;
+      ctx.shadowBlur = 16;
+    }
+    if (lip > 0) {
+      tracePixelRect(ctx, x, y + lip, w, h, r);
+      ctx.fillStyle = bottomShadow;
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+
+    tracePixelRect(ctx, x, y, w, h, r);
+    ctx.fillStyle = fill;
+    ctx.fill();
+
+    // Inner top bevel line
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = topHighlight;
+    ctx.fillRect(x, y, w, 3);
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fillRect(x, y + h - 3, w, 3);
+    ctx.restore();
+
+    tracePixelRect(ctx, x + 0.5, y + 0.5, w - 1, h - 1, r);
+    ctx.strokeStyle = border;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Crisp procedural suit icons (zero OS emoji fallback)
+  function drawSuitIcon(ctx, suit, cx, cy, size, color) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = color;
+    const s = size;
+
+    if (suit === 'diamonds') {
+      ctx.beginPath();
+      ctx.moveTo(0, -s);
+      ctx.lineTo(s * 0.78, 0);
+      ctx.lineTo(0, s);
+      ctx.lineTo(-s * 0.78, 0);
+      ctx.closePath();
+      ctx.fill();
+    } else if (suit === 'hearts') {
+      ctx.beginPath();
+      ctx.moveTo(0, s * 0.92);
+      ctx.bezierCurveTo(-s * 1.15, s * 0.15, -s * 1.1, -s * 0.85, -s * 0.45, -s * 0.88);
+      ctx.bezierCurveTo(-s * 0.15, -s * 0.88, 0, -s * 0.52, 0, -s * 0.35);
+      ctx.bezierCurveTo(0, -s * 0.52, s * 0.15, -s * 0.88, s * 0.45, -s * 0.88);
+      ctx.bezierCurveTo(s * 1.1, -s * 0.85, s * 1.15, s * 0.15, 0, s * 0.92);
+      ctx.closePath();
+      ctx.fill();
+    } else if (suit === 'spades') {
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.96);
+      ctx.bezierCurveTo(s * 1.05, -s * 0.12, s * 1.05, s * 0.65, s * 0.4, s * 0.58);
+      ctx.bezierCurveTo(s * 0.15, s * 0.55, s * 0.08, s * 0.35, s * 0.08, s * 0.35);
+      ctx.lineTo(s * 0.3, s * 0.92);
+      ctx.lineTo(-s * 0.3, s * 0.92);
+      ctx.lineTo(-s * 0.08, s * 0.35);
+      ctx.bezierCurveTo(-s * 0.08, s * 0.35, -s * 0.15, s * 0.55, -s * 0.4, s * 0.58);
+      ctx.bezierCurveTo(-s * 1.05, s * 0.65, -s * 1.05, -s * 0.12, 0, -s * 0.96);
+      ctx.closePath();
+      ctx.fill();
+    } else if (suit === 'clubs') {
+      const r = s * 0.38;
+      ctx.beginPath();
+      ctx.arc(0, -s * 0.42, r, 0, Math.PI * 2);
+      ctx.arc(-s * 0.44, s * 0.12, r, 0, Math.PI * 2);
+      ctx.arc(s * 0.44, s * 0.12, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.1);
+      ctx.lineTo(s * 0.28, s * 0.92);
+      ctx.lineTo(-s * 0.28, s * 0.92);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function wrapLines(ctx, text, maxW) {
+    const words = text.split(' ');
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+      const test = cur ? cur + ' ' + w : w;
+      if (ctx.measureText(test).width > maxW && cur) {
+        lines.push(cur);
+        cur = w;
+      } else {
+        cur = test;
+      }
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
+  // =========================================================================
+  // 4. GAME STATE & ENGINE
+  // =========================================================================
+  const canvas = document.getElementById('game-canvas');
+  const ctx = canvas.getContext('2d');
+
+  // Offscreen subtle felt grain pattern
+  const feltPatternCanvas = document.createElement('canvas');
+  feltPatternCanvas.width = 64;
+  feltPatternCanvas.height = 64;
+  (() => {
+    const pctx = feltPatternCanvas.getContext('2d');
+    pctx.clearRect(0, 0, 64, 64);
+    for (let y = 0; y < 64; y += 2) {
+      for (let x = 0; x < 64; x += 2) {
+        const v = ((x * 13 + y * 29) % 17) / 17;
+        pctx.fillStyle = v > 0.5 ? 'rgba(255,255,255,0.018)' : 'rgba(0,0,0,0.035)';
+        pctx.fillRect(x, y, 2, 2);
+      }
+    }
+  })();
+
+  const state = {
+    mode: 'TITLE_MENU', // TITLE_MENU | PLAYING | SCORING | CASH_OUT | SHOP | VICTORY | GAME_OVER
+    modal: null,        // null | 'PAUSE' | 'GUIDE'
+    crtEnabled: true,
+    time: 0,
+    stats: loadStats(),
+
+    // Viewport transform
+    vw: window.innerWidth,
+    vh: window.innerHeight,
+    dpr: Math.min(window.devicePixelRatio || 1, 2),
+    scale: 1,
+    ox: 0,
+    oy: 0,
+
+    // Run state
+    stage: 1,
+    endless: false,
+    targetScore: 300,
+    stageScore: 0,
+    displayScore: 0,
+    handsLeft: BASE_HANDS,
+    rerollsLeft: BASE_REROLLS,
+    money: 4,
+    activeBoss: null,
+    usedBossIds: [],
+    bestHandScore: 0,
+    totalMoneyEarned: 0,
+    handsPlayedRun: 0,
+
+    // Live scoring display
+    chips: 0,
+    mult: 0,
+    liveHandName: '',
+    scoringHandTotal: 0,
+    scoringBanner: '',
+    scoringQueue: [],
+    scoringTimer: 0,
+    scoringStepCount: 0,
+    pendingAfterScore: null,
+
+    // Dice (5 d6)
+    dice: [],
+
+    // Cards
+    activeCards: [],
+    shopCards: [],
+    cashOutData: null,
+    cashOutReveal: 0,
+
+    // Title backdrop props
+    titleDice: [],
+    titleCards: [],
+
+    // Interaction state
+    mouseX: -999,
+    mouseY: -999,
+    hoveredCard: null, // { zone: 'active' | 'shop', card, idx, rect }
+    focusedActiveUid: null,
+    drag: null, // { card, fromIdx, startX, startY, curX, curY, active }
+    buttons: [], // Interactive buttons rebuilt each frame for exact hit-testing
+    hoverButtonId: null,
+    noticeText: '',
+    noticeTimer: 0,
+
+    // Juice (particles, popups, screen shake, flash)
+    particles: [],
+    popups: [],
+    shakeMag: 0,
+    hitFlash: 0,
+    scoreTickAccum: 0
+  };
+
+  function getMaxCardSlots() {
+    let negs = 0;
+    for (const c of state.activeCards) {
+      if (c.edition === 'negative') negs++;
+    }
+    return BASE_MAX_SLOTS + negs;
+  }
+
+  function getUsedCardSlots() {
+    let count = 0;
+    for (const c of state.activeCards) {
+      if (c.edition !== 'negative') count++;
+    }
+    return count;
+  }
+
+  function showNotice(text, dur = 1.6) {
+    state.noticeText = text;
+    state.noticeTimer = dur;
+  }
+
+  function addShake(amount) {
+    state.shakeMag = Math.min(22, Math.max(state.shakeMag, amount));
+  }
+
+  function spawnPopup(x, y, text, color = '#FFFFFF', size = 22) {
+    state.popups.push({
+      x, y,
+      vy: -56,
+      text,
+      color,
+      size,
+      life: 0,
+      maxLife: 1.05,
+      scale: 0.45
+    });
+  }
+
+  function spawnParticles(x, y, count, palette, speedMin = 80, speedMax = 300) {
+    for (let i = 0; i < count; i++) {
+      if (state.particles.length > 260) state.particles.shift();
+      const ang = Math.random() * Math.PI * 2;
+      const spd = speedMin + Math.random() * (speedMax - speedMin);
+      state.particles.push({
+        x, y,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd - 60,
+        size: 3 + Math.random() * 6,
+        color: palette[Math.floor(Math.random() * palette.length)],
+        life: 0,
+        maxLife: 0.45 + Math.random() * 0.55,
+        rot: Math.random() * Math.PI * 2,
+        vrot: (Math.random() - 0.5) * 10
+      });
+    }
+  }
+
+  // Initialize decorative animated props for the Title Screen
+  function initTitleBackdrop() {
+    state.titleDice = [
+      { value: 6, x: 185, y: 215, phase: 0.0, rot: -0.18 },
+      { value: 5, x: 1105, y: 210, phase: 1.3, rot: 0.22 },
+      { value: 3, x: 225, y: 575, phase: 2.4, rot: 0.14 },
+      { value: 6, x: 1060, y: 560, phase: 3.7, rot: -0.20 }
+    ];
+    state.titleCards = [
+      createCardInstance('KS', 'foil'),
+      createCardInstance('AH', 'holographic'),
+      createCardInstance('KD', 'polychrome'),
+      createCardInstance('QH', 'negative'),
+      createCardInstance('7D', 'standard')
+    ];
+  }
+
+  // =========================================================================
+  // 5. RUN & STAGE FLOW LOGIC
+  // =========================================================================
+  function createFreshDice() {
+    const startX = 468;
+    const spacing = 164;
+    const baseY = 472;
+    const arr = [];
+    for (let i = 0; i < 5; i++) {
+      arr.push({
+        id: i,
+        value: 1 + Math.floor(Math.random() * 6),
+        selected: false,
+        x: startX + i * spacing,
+        y: baseY - 120 - Math.random() * 60,
+        targetX: startX + i * spacing,
+        targetY: baseY,
+        vy: 0,
+        angle: (Math.random() - 0.5) * 1.4,
+        vAngle: (Math.random() - 0.5) * 16,
+        tumbleTimer: 0.42 + i * 0.055,
+        flickerTimer: 0,
+        scale: 1,
+        hop: 0,
+        flash: 0,
+        flashColor: COLORS.chipsLight
+      });
+    }
+    return arr;
+  }
+
+  function startNewRun() {
+    sfx.unlock();
+    sfx.buyCard();
+    state.stage = 1;
+    state.endless = false;
+    state.money = 4;
+    state.activeCards = [];
+    state.shopCards = [];
+    state.usedBossIds = [];
+    state.bestHandScore = 0;
+    state.totalMoneyEarned = 0;
+    state.handsPlayedRun = 0;
+    state.modal = null;
+    state.focusedActiveUid = null;
+    state.drag = null;
+    startStage(1);
+  }
+
+  function startStage(stageNum) {
+    state.stage = stageNum;
+    state.targetScore = getStageTarget(stageNum);
+    state.stageScore = 0;
+    state.displayScore = 0;
+    state.scoringHandTotal = 0;
+    state.scoringQueue = [];
+    state.scoringBanner = '';
+    state.mode = 'PLAYING';
+    state.modal = null;
+    state.focusedActiveUid = null;
+
+    // Assign Boss every 3rd stage
+    if (stageNum % 3 === 0) {
+      let pool = BOSS_MODIFIERS.filter(b => !state.usedBossIds.includes(b.id));
+      if (pool.length === 0) {
+        state.usedBossIds = [];
+        pool = BOSS_MODIFIERS;
+      }
+      const boss = pool[Math.floor(Math.random() * pool.length)];
+      state.activeBoss = boss;
+      state.usedBossIds.push(boss.id);
+      sfx.bossIntro();
+      showNotice('BOSS BLIND: ' + boss.name + ' — ' + boss.short, 2.8);
+    } else {
+      state.activeBoss = null;
+    }
+
+    state.handsLeft = (state.activeBoss && state.activeBoss.id === 'THREE_HANDS') ? 3 : BASE_HANDS;
+    state.rerollsLeft = (state.activeBoss && state.activeBoss.id === 'TWO_REROLLS') ? 2 : BASE_REROLLS;
+
+    state.dice = createFreshDice();
+    sfx.diceRoll(5);
+    updateLivePreview();
+  }
+
+  function rollDiceSet(indicesToRoll) {
+    if (indicesToRoll.length === 0) return;
+    sfx.diceRoll(indicesToRoll.length);
+    for (let k = 0; k < indicesToRoll.length; k++) {
+      const d = state.dice[indicesToRoll[k]];
+      d.value = 1 + Math.floor(Math.random() * 6);
+      d.y = d.targetY - 90 - Math.random() * 45;
+      d.vy = -120 - Math.random() * 80;
+      d.angle = (Math.random() - 0.5) * 1.6;
+      d.vAngle = (Math.random() > 0.5 ? 1 : -1) * (10 + Math.random() * 9);
+      d.tumbleTimer = 0.36 + k * 0.05;
+      d.flickerTimer = 0;
+      d.scale = 1.12;
+      spawnParticles(d.x, d.targetY + 25, 5, ['rgba(247,243,232,0.7)', COLORS.brassBright], 40, 110);
+    }
+    updateLivePreview();
+  }
+
+  function isAnyDieTumbling() {
+    return state.dice.some(d => d.tumbleTimer > 0.02);
+  }
+
+  function toggleDieSelection(idx) {
+    if (state.mode !== 'PLAYING' || state.modal) return;
+    const d = state.dice[idx];
+    if (!d) return;
+    if (d.selected) {
+      d.selected = false;
+      d.scale = 0.92;
+      sfx.dieSelect(false);
+    } else {
+      const curSelected = state.dice.filter(x => x.selected).length;
+      if (curSelected >= MAX_SELECT_DICE) {
+        sfx.error();
+        showNotice('Maximum 3 dice per hand — deselect one first', 1.4);
+        d.scale = 0.9;
+        return;
+      }
+      d.selected = true;
+      d.scale = 1.12;
+      sfx.dieSelect(true);
+    }
+    updateLivePreview();
+  }
+
+  function clearSelectedDice() {
+    if (state.mode !== 'PLAYING' || state.modal) return;
+    let changed = false;
+    for (const d of state.dice) {
+      if (d.selected) {
+        d.selected = false;
+        changed = true;
+      }
+    }
+    if (changed) {
+      sfx.dieSelect(false);
+      updateLivePreview();
+    }
+  }
+
+  function triggerReroll() {
+    if (state.mode !== 'PLAYING' || state.modal || isAnyDieTumbling()) return;
+    if (state.rerollsLeft <= 0) {
+      sfx.error();
+      showNotice('No Rerolls remaining this stage', 1.4);
+      return;
+    }
+    const unselected = [];
+    for (let i = 0; i < state.dice.length; i++) {
+      if (!state.dice[i].selected) unselected.push(i);
+    }
+    if (unselected.length === 0) {
+      sfx.error();
+      showNotice('Deselect at least one die to reroll', 1.4);
+      return;
+    }
+    state.rerollsLeft--;
+    rollDiceSet(unselected);
+  }
+
+  function updateLivePreview() {
+    if (state.mode === 'SCORING') return;
+    const selected = state.dice.filter(d => d.selected);
+    if (selected.length === 0) {
+      state.liveHandName = '';
+      state.chips = 0;
+      state.mult = 0;
+      return;
+    }
+    const hand = evaluateHand(selected.map(d => d.value));
+    state.liveHandName = hand.name;
+    state.chips = hand.chips;
+    state.mult = hand.mult;
+  }
+
+  // =========================================================================
+  // 6. DETERMINISTIC SCORING PIPELINE (LEFT-TO-RIGHT CASCADE)
+  // =========================================================================
+  function isDieDebuffedByBoss(val) {
+    if (!state.activeBoss) return false;
+    if (state.activeBoss.id === 'EVEN_ZERO' && val % 2 === 0) return true;
+    if (state.activeBoss.id === 'ODD_ZERO' && val % 2 === 1) return true;
+    return false;
+  }
+
+  function isCardDebuffedByBoss(cardIndex) {
+    return Boolean(state.activeBoss && state.activeBoss.id === 'DISABLE_FIRST' && cardIndex === 0);
+  }
+
+  function playSelectedHand() {
+    if (state.mode !== 'PLAYING' || state.modal || isAnyDieTumbling()) return;
+    const playedDice = state.dice.filter(d => d.selected);
+    if (playedDice.length === 0) {
+      sfx.error();
+      showNotice('Select 1 to 3 dice to play a hand', 1.5);
+      return;
+    }
+    if (state.activeBoss && state.activeBoss.id === 'MIN_TWO_DICE' && playedDice.length < 2) {
+      sfx.error();
+      showNotice('The Heavy Felt requires at least 2 dice!', 1.8);
+      return;
+    }
+
+    const hand = evaluateHand(playedDice.map(d => d.value));
+    state.handsLeft--;
+    state.handsPlayedRun++;
+    state.mode = 'SCORING';
+    state.focusedActiveUid = null;
+    state.drag = null;
+
+    // Build deterministic scoring step timeline
+    const steps = [];
+    const playedSum = playedDice.reduce((acc, d) => acc + d.value, 0);
+    const unplayedCount = state.dice.length - playedDice.length;
+
+    // Step 0: Base hand ignition
+    steps.push({
+      type: 'BASE_HAND',
+      hand,
+      duration: 0.42
+    });
+
+    // Determine active retrigger cards (ignoring boss-debuffed slot 0)
+    const retriggerFirstCards = [];
+    const retriggerSixCards = [];
+    state.activeCards.forEach((inst, idx) => {
+      if (isCardDebuffedByBoss(idx)) return;
+      const def = CARD_BY_ID[inst.cardId];
+      if (def.retriggerFirst) retriggerFirstCards.push(inst);
+      if (def.retriggerSix) retriggerSixCards.push(inst);
+    });
+
+    // Step 1: Score each played die (+ any retriggers)
+    const scoredDiceLog = [];
+    playedDice.forEach((die, idx) => {
+      const debuffed = isDieDebuffedByBoss(die.value);
+      scoredDiceLog.push(die);
+      steps.push({
+        type: 'DIE_SCORE',
+        die,
+        debuffed,
+        retriggerCard: null,
+        duration: 0.28
+      });
+
+      // Retrigger first die via Jack of Clubs
+      if (idx === 0) {
+        for (const rc of retriggerFirstCards) {
+          scoredDiceLog.push(die);
+          steps.push({
+            type: 'DIE_SCORE',
+            die,
+            debuffed,
+            retriggerCard: rc,
+            duration: 0.34
+          });
+        }
+      }
+      // Retrigger 6s via 6 of Spades
+      if (die.value === 6) {
+        for (const rc of retriggerSixCards) {
+          scoredDiceLog.push(die);
+          steps.push({
+            type: 'DIE_SCORE',
+            die,
+            debuffed,
+            retriggerCard: rc,
+            duration: 0.34
+          });
+        }
+      }
+    });
+
+    // Step 2: Modifier cards left to right
+    const evalCtx = {
+      hand,
+      playedDice,
+      scoredDice: scoredDiceLog,
+      playedSum,
+      unplayedCount,
+      rerollsLeft: state.rerollsLeft,
+      handsLeftAfterPlay: state.handsLeft,
+      money: state.money
+    };
+
+    state.activeCards.forEach((inst, idx) => {
+      const def = CARD_BY_ID[inst.cardId];
+      if (isCardDebuffedByBoss(idx)) {
+        steps.push({
+          type: 'CARD_DEBUFFED',
+          card: inst,
+          duration: 0.30
+        });
+        return;
+      }
+
+      const cardEvents = def.evaluate(inst, evalCtx);
+      for (const ev of cardEvents) {
+        steps.push({
+          type: 'CARD_EVENT',
+          card: inst,
+          def,
+          ev,
+          duration: cardEvents.length > 2 ? 0.25 : 0.34
+        });
+      }
+
+      // Edition scoring trigger (Foil, Holographic, Polychrome)
+      if (inst.edition === 'foil') {
+        steps.push({
+          type: 'EDITION_EVENT',
+          card: inst,
+          edition: 'foil',
+          chipsAdd: 50,
+          label: 'Foil +50',
+          color: COLORS.chipsLight,
+          sfx: 'chips',
+          duration: 0.30
+        });
+      } else if (inst.edition === 'holographic') {
+        steps.push({
+          type: 'EDITION_EVENT',
+          card: inst,
+          edition: 'holographic',
+          multAdd: 12,
+          label: 'Holo +12M',
+          color: '#F472B6',
+          sfx: 'mult',
+          duration: 0.30
+        });
+      } else if (inst.edition === 'polychrome') {
+        steps.push({
+          type: 'EDITION_EVENT',
+          card: inst,
+          edition: 'polychrome',
+          multMul: 1.5,
+          label: 'Poly x1.5',
+          color: '#C084FC',
+          sfx: 'xmult',
+          duration: 0.34
+        });
+      }
+    });
+
+    // Step 3: Slam total into stage score
+    steps.push({
+      type: 'TOTAL_SLAM',
+      duration: 0.95
+    });
+
+    state.scoringQueue = steps;
+    state.scoringTimer = 0.05;
+    state.scoringStepCount = 0;
+    state.scoringHandTotal = 0;
+    state.liveHandName = hand.name;
+    state.chips = hand.chips;
+    state.mult = hand.mult;
+  }
+
+  function executeScoringStep(step) {
+    if (step.type === 'BASE_HAND') {
+      state.chips = step.hand.chips;
+      state.mult = step.hand.mult;
+      state.scoringBanner = step.hand.name + '  (' + step.hand.chips + ' × ' + step.hand.mult + ')';
+      sfx.scoreStep(0, 'chips');
+      spawnPopup(168, 355, step.hand.name + '!', COLORS.brassBright, 20);
+      return;
+    }
+
+    if (step.type === 'DIE_SCORE') {
+      const d = step.die;
+      d.hop = 1;
+      if (step.retriggerCard) {
+        step.retriggerCard.bounce = 1;
+        step.retriggerCard.flash = 1;
+        step.retriggerCard.pulseColor = COLORS.goldLight;
+        spawnPopup(step.retriggerCard.x, step.retriggerCard.y - 36, 'Retrigger!', COLORS.goldLight, 18);
+        sfx.scoreStep(state.scoringStepCount, 'retrigger');
+      }
+      if (step.debuffed) {
+        d.flash = 1;
+        d.flashColor = COLORS.multRed;
+        state.scoringBanner = state.activeBoss.name + ' blocked ' + d.value + '!';
+        spawnPopup(d.x, d.y - 68, '0 (Boss)', COLORS.multLight, 20);
+        sfx.scoreStep(state.scoringStepCount, 'debuff');
+      } else {
+        state.chips += d.value;
+        d.flash = 1;
+        d.flashColor = COLORS.chipsLight;
+        state.scoringStepCount++;
+        state.scoringBanner = 'Die ' + d.value + '  →  +' + d.value + ' Chips';
+        spawnPopup(d.x, d.y - 68, '+' + d.value, COLORS.chipsLight, 24);
+        spawnParticles(d.x, d.y - 10, 8, [COLORS.chipsLight, '#FFFFFF'], 50, 140);
+        sfx.scoreStep(state.scoringStepCount, 'chips');
+      }
+      return;
+    }
+
+    if (step.type === 'CARD_DEBUFFED') {
+      const c = step.card;
+      c.bounce = 0.6;
+      c.flash = 1;
+      c.pulseColor = COLORS.multRed;
+      state.scoringBanner = 'Leftmost card disabled by ' + state.activeBoss.name;
+      spawnPopup(c.x, c.y + 42, 'Debuffed', COLORS.multLight, 19);
+      sfx.scoreStep(state.scoringStepCount, 'debuff');
+      return;
+    }
+
+    if (step.type === 'CARD_EVENT') {
+      const c = step.card;
+      const ev = step.ev;
+      c.bounce = 1;
+      c.flash = 1;
+      c.pulseColor = ev.color;
+      state.scoringStepCount++;
+
+      if (ev.dieId !== undefined) {
+        const d = state.dice[ev.dieId];
+        if (d) {
+          d.hop = 0.7;
+          d.flash = 0.8;
+          d.flashColor = ev.color;
+        }
+      }
+      if (ev.scaleAdd) {
+        c.scalingBonus = (c.scalingBonus || 0) + ev.scaleAdd;
+      }
+      if (ev.chipsAdd) state.chips += ev.chipsAdd;
+      if (ev.multAdd) state.mult += ev.multAdd;
+      if (ev.multMul) state.mult = Math.round(state.mult * ev.multMul * 100) / 100;
+      if (ev.moneyAdd) {
+        state.money += ev.moneyAdd;
+        state.totalMoneyEarned += ev.moneyAdd;
+      }
+
+      state.scoringBanner = step.def.name + '  →  ' + ev.label;
+      spawnPopup(c.x, c.y + 45, ev.label, ev.color, ev.multMul ? 26 : 22);
+      spawnParticles(c.x, c.y, ev.multMul ? 18 : 10, [ev.color, '#FFFFFF', COLORS.brassBright], 70, 210);
+      if (ev.multMul) addShake(5);
+      sfx.scoreStep(state.scoringStepCount, ev.sfx || 'mult');
+      return;
+    }
+
+    if (step.type === 'EDITION_EVENT') {
+      const c = step.card;
+      c.bounce = 1.15;
+      c.flash = 1;
+      c.pulseColor = step.color;
+      state.scoringStepCount++;
+      if (step.chipsAdd) state.chips += step.chipsAdd;
+      if (step.multAdd) state.mult += step.multAdd;
+      if (step.multMul) state.mult = Math.round(state.mult * step.multMul * 100) / 100;
+
+      state.scoringBanner = EDITIONS[step.edition].name + ' Edition  →  ' + step.label;
+      spawnPopup(c.x, c.y + 58, step.label, step.color, 23);
+      spawnParticles(c.x, c.y, 16, [step.color, '#FFFFFF', '#FDE047'], 80, 230);
+      if (step.multMul) addShake(6);
+      sfx.scoreStep(state.scoringStepCount, step.sfx);
+      return;
+    }
+
+    if (step.type === 'TOTAL_SLAM') {
+      const handTotal = Math.round(state.chips * state.mult);
+      state.scoringHandTotal = handTotal;
+      const prevScore = state.stageScore;
+      state.stageScore += handTotal;
+      if (handTotal > state.bestHandScore) state.bestHandScore = handTotal;
+
+      // Persist best stats
+      if (handTotal > state.stats.bestHand) {
+        state.stats.bestHand = handTotal;
+        saveStats(state.stats);
+      }
+
+      const beatTarget = state.stageScore >= state.targetScore;
+      const hugeBlowout = handTotal >= state.targetScore;
+
+      state.scoringBanner = fmtNum(state.chips) + ' × ' + fmtMult(state.mult) + ' = ' + fmtNum(handTotal) + (beatTarget ? '  —  BLIND CLEARED!' : '');
+      spawnPopup(796, 390, '+' + fmtNum(handTotal), beatTarget ? COLORS.goldLight : '#FFFFFF', hugeBlowout ? 44 : 34);
+
+      if (beatTarget) {
+        addShake(hugeBlowout ? 18 : 11);
+        state.hitFlash = hugeBlowout ? 0.55 : 0.3;
+        spawnParticles(796, 420, hugeBlowout ? 75 : 45, [COLORS.goldLight, COLORS.emerald, COLORS.chipsLight, '#FFFFFF'], 120, 420);
+        spawnParticles(168, 224, 30, [COLORS.goldLight, COLORS.emerald], 80, 260);
+      } else {
+        addShake(4);
+        spawnParticles(796, 420, 18, [COLORS.chipsLight, COLORS.multLight, '#FFFFFF'], 80, 200);
+      }
+      sfx.totalSlam(beatTarget);
+
+      // Decide next phase once slam settles
+      if (beatTarget) {
+        if (state.stage > state.stats.bestStage) {
+          state.stats.bestStage = state.stage;
+          saveStats(state.stats);
+        }
+        state.pendingAfterScore = 'CASH_OUT';
+      } else if (state.handsLeft <= 0) {
+        state.pendingAfterScore = 'GAME_OVER';
+      } else {
+        state.pendingAfterScore = 'NEXT_HAND';
+      }
+    }
+  }
+
+  function finishScoringPhase() {
+    const next = state.pendingAfterScore;
+    state.pendingAfterScore = null;
+    state.scoringBanner = '';
+
+    if (next === 'CASH_OUT') {
+      const baseReward = getStageBaseReward(state.stage);
+      const handsBonus = state.handsLeft;
+      const interest = Math.min(MAX_INTEREST, Math.floor(state.money / 5));
+      const total = baseReward + handsBonus + interest;
+      state.cashOutData = {
+        baseReward,
+        handsBonus,
+        handsCount: state.handsLeft,
+        interest,
+        total,
+        claimed: false,
+        isRunVictory: state.stage === 9 && !state.endless
+      };
+      state.cashOutReveal = 0;
+      state.mode = 'CASH_OUT';
+      sfx.sellCard();
+    } else if (next === 'GAME_OVER') {
+      state.mode = 'GAME_OVER';
+      sfx.gameOver();
+    } else {
+      state.mode = 'PLAYING';
+      // Deselect all and roll fresh 5 dice
+      for (const d of state.dice) d.selected = false;
+      rollDiceSet([0, 1, 2, 3, 4]);
+    }
+  }
+
+  // =========================================================================
+  // 7. CASH-OUT, SHOP & CARD MANAGEMENT
+  // =========================================================================
+  function claimCashOut() {
+    if (state.mode !== 'CASH_OUT' || !state.cashOutData) return;
+    if (!state.cashOutData.claimed) {
+      state.cashOutData.claimed = true;
+      state.money += state.cashOutData.total;
+      state.totalMoneyEarned += state.cashOutData.total;
+      sfx.buyCard();
+      spawnPopup(168, 540, '+$' + state.cashOutData.total, COLORS.goldLight, 26);
+    }
+
+    if (state.cashOutData.isRunVictory) {
+      state.stats.wins = (state.stats.wins || 0) + 1;
+      state.stats.bestStage = Math.max(state.stats.bestStage, 9);
+      saveStats(state.stats);
+      state.mode = 'VICTORY';
+      sfx.victory();
+      spawnParticles(640, 320, 80, [COLORS.goldLight, COLORS.emerald, COLORS.chipsLight, '#F472B6'], 120, 420);
+      return;
+    }
+
+    enterShop();
+  }
+
+  function enterShop() {
+    state.mode = 'SHOP';
+    state.focusedActiveUid = null;
+    rollShopInventory();
+  }
+
+  function rollShopInventory() {
+    const ownedIds = new Set(state.activeCards.map(c => c.cardId));
+    let pool = CARD_CATALOG.filter(c => !ownedIds.has(c.id));
+    if (pool.length < 3) pool = [...CARD_CATALOG];
+
+    // Fisher-Yates shuffle
+    const shuffled = [...pool];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    state.shopCards = shuffled.slice(0, 3).map(def => createCardInstance(def.id));
+    sfx.cardSnap();
+  }
+
+  function rerollShop() {
+    if (state.mode !== 'SHOP' || state.modal) return;
+    if (state.money < SHOP_REROLL_COST) {
+      sfx.error();
+      showNotice('Need $' + SHOP_REROLL_COST + ' to reroll the Shop', 1.4);
+      return;
+    }
+    state.money -= SHOP_REROLL_COST;
+    spawnPopup(168, 540, '-$' + SHOP_REROLL_COST, COLORS.multLight, 22);
+    rollShopInventory();
+  }
+
+  function buyShopCard(shopIdx) {
+    if (state.mode !== 'SHOP' || state.modal) return;
+    const card = state.shopCards[shopIdx];
+    if (!card) return;
+    if (state.money < card.price) {
+      sfx.error();
+      showNotice('Not enough money ($' + card.price + ' required)', 1.4);
+      return;
+    }
+    const isNeg = card.edition === 'negative';
+    if (!isNeg && state.activeCards.length >= getMaxCardSlots()) {
+      sfx.error();
+      showNotice('Card slots full — sell a card first!', 1.6);
+      return;
+    }
+
+    state.money -= card.price;
+    state.shopCards[shopIdx] = null;
+    card.bounce = 1.2;
+    card.flash = 1;
+    card.pulseColor = EDITIONS[card.edition].color;
+    state.activeCards.push(card);
+    sfx.buyCard();
+    spawnPopup(168, 540, '-$' + card.price, COLORS.goldLight, 22);
+    spawnParticles(796, 150, 20, [COLORS.goldLight, EDITIONS[card.edition].color, '#FFFFFF'], 70, 220);
+  }
+
+  function sellActiveCard(idx) {
+    if ((state.mode !== 'PLAYING' && state.mode !== 'SHOP') || state.modal) return;
+    const card = state.activeCards[idx];
+    if (!card) return;
+
+    // Prevent selling a Negative card if remaining non-negative cards would exceed slots?
+    // Even better: allow selling Negative cards safely; if slots overflow, players just can't buy until below max.
+    const val = card.sellValue;
+    spawnPopup(card.x, card.y, '+$' + val, COLORS.goldLight, 24);
+    spawnParticles(card.x, card.y, 14, [COLORS.goldLight, '#FFFFFF'], 60, 170);
+    state.activeCards.splice(idx, 1);
+    state.money += val;
+    state.totalMoneyEarned += val;
+    state.focusedActiveUid = null;
+    sfx.sellCard();
+  }
+
+  function moveActiveCard(idx, delta) {
+    if ((state.mode !== 'PLAYING' && state.mode !== 'SHOP') || state.modal) return;
+    const target = idx + delta;
+    if (target < 0 || target >= state.activeCards.length) return;
+    const tmp = state.activeCards[idx];
+    state.activeCards[idx] = state.activeCards[target];
+    state.activeCards[target] = tmp;
+    tmp.bounce = 0.7;
+    sfx.cardSnap();
+  }
+
+  // =========================================================================
+  // 8. LAYOUT CALCULATORS (ACTIVE CARD SLOTS & SHOP SLOTS)
+  // =========================================================================
+  function getActiveCardLayout() {
+    const trayX = 356;
+    const trayW = 880;
+    const count = state.activeCards.length;
+    const cardW = count > 6 ? Math.max(92, Math.floor((trayW - (count - 1) * 10) / count)) : 128;
+    const cardH = Math.round(cardW * 1.36);
+    const gap = count > 6 ? 10 : 18;
+    const totalW = count > 0 ? count * cardW + (count - 1) * gap : 0;
+    const startX = trayX + (trayW - totalW) / 2;
+    const centerY = 148;
+    return { cardW, cardH, gap, startX, centerY, trayX, trayW };
+  }
+
+  function getShopCardRects() {
+    const cardW = 146;
+    const cardH = 198;
+    const gap = 58;
+    const totalW = 3 * cardW + 2 * gap;
+    const startX = 336 + (920 - totalW) / 2;
+    const topY = 368;
+    return [0, 1, 2].map(i => ({
+      x: startX + i * (cardW + gap),
+      y: topY,
+      w: cardW,
+      h: cardH
+    }));
+  }
+
+  // =========================================================================
+  // 9. CANVAS RENDERING — DICE, CARDS, EDITIONS, HUD & OVERLAYS
+  // =========================================================================
+  function drawDie(ctx, die, isTitle = false) {
+    const size = isTitle ? 88 : 108;
+    const half = size / 2;
+    const debuffed = !isTitle && isDieDebuffedByBoss(die.value);
+    const liftY = isTitle ? 0 : (die.selected ? -34 : 0) - die.hop * 22;
+    const px = die.x;
+    const py = die.y + liftY;
+    const shadowOffset = isTitle ? 12 : (die.selected ? 28 : 10) + die.hop * 14;
+
+    ctx.save();
+    // Grounded shadow on felt
+    ctx.save();
+    ctx.translate(px, die.targetY ? die.targetY + 12 : py + shadowOffset);
+    const shadowScale = clamp(1 - Math.abs(liftY) / 160, 0.72, 1.05);
+    ctx.scale(shadowScale, shadowScale * 0.38);
+    tracePixelRect(ctx, -half, -half, size, size, 18);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.44)';
+    ctx.fill();
+    ctx.restore();
+
+    // Die body transform
+    ctx.translate(px, py);
+    ctx.rotate(die.angle || 0);
+    const sc = (die.scale || 1) + (die.hop ? die.hop * 0.14 : 0);
+    ctx.scale(sc, sc);
+
+    // Selection glow halo
+    if (!isTitle && die.selected) {
+      tracePixelRect(ctx, -half - 6, -half - 6, size + 12, size + 12, 16);
+      ctx.fillStyle = 'rgba(246, 202, 101, 0.18)';
+      ctx.fill();
+      ctx.strokeStyle = COLORS.brassBright;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+
+    // 3D beveled side lip
+    tracePixelRect(ctx, -half, -half + 7, size, size, 14);
+    ctx.fillStyle = debuffed ? '#6B4848' : COLORS.ivoryDeep;
+    ctx.fill();
+
+    // Main die face
+    tracePixelRect(ctx, -half, -half, size, size, 14);
+    const grad = ctx.createLinearGradient(-half, -half, half, half);
+    if (debuffed) {
+      grad.addColorStop(0, '#D4B8B8');
+      grad.addColorStop(1, '#A98888');
+    } else {
+      grad.addColorStop(0, '#FFFDF7');
+      grad.addColorStop(0.65, COLORS.ivory);
+      grad.addColorStop(1, COLORS.ivoryShade);
+    }
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Recessed inner bevel square
+    tracePixelRect(ctx, -half + 7, -half + 7, size - 14, size - 14, 10);
+    ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Crisp outer outline
+    tracePixelRect(ctx, -half + 0.5, -half + 0.5, size - 1, size - 1, 14);
+    ctx.strokeStyle = die.selected ? COLORS.brassBright : 'rgba(24, 34, 48, 0.65)';
+    ctx.lineWidth = die.selected ? 2.5 : 2;
+    ctx.stroke();
+
+    // Pips
+    const val = die.tumbleTimer > 0.05 ? (1 + ((Math.floor(state.time * 24) + die.id) % 6)) : die.value;
+    const pOff = size * 0.255;
+    const pipR = val === 1 ? size * 0.125 : size * 0.092;
+    const pipCoords = {
+      1: [[0, 0]],
+      2: [[-pOff, -pOff], [pOff, pOff]],
+      3: [[-pOff, -pOff], [0, 0], [pOff, pOff]],
+      4: [[-pOff, -pOff], [pOff, -pOff], [-pOff, pOff], [pOff, pOff]],
+      5: [[-pOff, -pOff], [pOff, -pOff], [0, 0], [-pOff, pOff], [pOff, pOff]],
+      6: [[-pOff, -pOff], [pOff, -pOff], [-pOff, 0], [pOff, 0], [-pOff, pOff], [pOff, pOff]]
+    }[val];
+
+    for (const [ox, oy] of pipCoords) {
+      // Subtle recessed pip rim
+      ctx.beginPath();
+      ctx.arc(ox, oy + 1.5, pipR, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(ox, oy, pipR, 0, Math.PI * 2);
+      ctx.fillStyle = debuffed
+        ? '#5C2626'
+        : (val === 1 ? COLORS.suitHearts : '#1A2433');
+      ctx.fill();
+    }
+
+    // Boss debuff cross mark
+    if (debuffed && die.tumbleTimer <= 0.05) {
+      ctx.strokeStyle = 'rgba(220, 38, 38, 0.72)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(-half + 16, -half + 16);
+      ctx.lineTo(half - 16, half - 16);
+      ctx.moveTo(half - 16, -half + 16);
+      ctx.lineTo(-half + 16, half - 16);
+      ctx.stroke();
+    }
+
+    // Score hit flash
+    if (die.flash > 0.01) {
+      tracePixelRect(ctx, -half, -half, size, size, 14);
+      ctx.fillStyle = die.flashColor || '#FFFFFF';
+      ctx.globalAlpha = die.flash * 0.45;
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Small unboxed label under die when selected or debuffed
+    if (!isTitle) {
+      ctx.save();
+      ctx.font = '700 12px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.textAlign = 'center';
+      if (die.selected) {
+        ctx.fillStyle = COLORS.brassBright;
+        ctx.fillText('▲ SELECTED', px, die.targetY + 62);
+      } else if (debuffed) {
+        ctx.fillStyle = COLORS.multLight;
+        ctx.fillText('0 CHIPS', px, die.targetY + 62);
+      } else {
+        ctx.fillStyle = 'rgba(180, 210, 196, 0.45)';
+        ctx.fillText('[' + (die.id + 1) + ']', px, die.targetY + 62);
+      }
+      ctx.restore();
+    }
+  }
+
+  function getSuitColor(suit, isNegative) {
+    if (isNegative) {
+      return {
+        spades: COLORS.negSpades,
+        hearts: COLORS.negHearts,
+        diamonds: COLORS.negDiamonds,
+        clubs: COLORS.negClubs
+      }[suit];
+    }
+    return {
+      spades: COLORS.suitSpades,
+      hearts: COLORS.suitHearts,
+      diamonds: COLORS.suitDiamonds,
+      clubs: COLORS.suitClubs
+    }[suit];
+  }
+
+  function drawPlayingCard(ctx, inst, cx, cy, w, h, opts = {}) {
+    const {
+      tilt = 0,
+      scale = 1,
+      debuffed = false,
+      hovered = false,
+      dragging = false,
+      showFooterTag = true
+    } = opts;
+
+    const def = CARD_BY_ID[inst.cardId];
+    const isNeg = inst.edition === 'negative';
+    const isFoil = inst.edition === 'foil';
+    const isHolo = inst.edition === 'holographic';
+    const isPoly = inst.edition === 'polychrome';
+    const suitColor = getSuitColor(def.suit, isNeg);
+    const hw = w / 2;
+    const hh = h / 2;
+    const r = 9;
+
+    ctx.save();
+    ctx.translate(cx, cy - (inst.bounce || 0) * 16 - (hovered && !dragging ? 7 : 0));
+    ctx.rotate(tilt + Math.sin(state.time * 2.2 + inst.uid) * (hovered ? 0.018 : 0.008));
+    const sc = scale * (1 + (inst.bounce || 0) * 0.1) * (dragging ? 1.07 : 1);
+    ctx.scale(sc, sc);
+
+    // Drop shadow
+    ctx.save();
+    tracePixelRect(ctx, -hw + (dragging ? 10 : 3), -hh + (dragging ? 16 : 8), w, h, r);
+    ctx.fillStyle = dragging ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.38)';
+    ctx.fill();
+    ctx.restore();
+
+    // Polychrome / Foil / Negative outer aura
+    if (isPoly) {
+      const hue = (state.time * 95 + inst.uid * 40) % 360;
+      ctx.save();
+      ctx.shadowColor = `hsl(${hue}, 95%, 68%)`;
+      ctx.shadowBlur = 18;
+      tracePixelRect(ctx, -hw - 2, -hh - 2, w + 4, h + 4, r + 1);
+      ctx.strokeStyle = `hsl(${hue}, 95%, 72%)`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.restore();
+    } else if (isFoil) {
+      ctx.save();
+      ctx.shadowColor = '#60A5FA';
+      ctx.shadowBlur = 12;
+      tracePixelRect(ctx, -hw - 1.5, -hh - 1.5, w + 3, h + 3, r + 1);
+      ctx.strokeStyle = '#93C5FD';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.restore();
+    } else if (isNeg) {
+      ctx.save();
+      ctx.shadowColor = '#7C3AED';
+      ctx.shadowBlur = 14;
+      tracePixelRect(ctx, -hw - 1.5, -hh - 1.5, w + 3, h + 3, r + 1);
+      ctx.strokeStyle = '#A78BFA';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 3D card bottom edge thickness
+    tracePixelRect(ctx, -hw, -hh + 4, w, h, r);
+    ctx.fillStyle = isNeg ? '#241B42' : '#BEB5A1';
+    ctx.fill();
+
+    // Card face background
+    tracePixelRect(ctx, -hw, -hh, w, h, r);
+    if (isNeg) {
+      const ng = ctx.createLinearGradient(-hw, -hh, hw, hh);
+      ng.addColorStop(0, '#181E34');
+      ng.addColorStop(1, '#0D1020');
+      ctx.fillStyle = ng;
+    } else {
+      const bg = ctx.createLinearGradient(-hw, -hh, hw, hh);
+      bg.addColorStop(0, '#FFFDF9');
+      bg.addColorStop(1, '#EFE8D8');
+      ctx.fillStyle = bg;
+    }
+    ctx.fill();
+
+    // Inner decorative frame
+    tracePixelRect(ctx, -hw + 6, -hh + 6, w - 12, h - 12, 5);
+    ctx.strokeStyle = isNeg ? 'rgba(167,139,250,0.28)' : 'rgba(24,34,48,0.12)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Corner Rank & Suit (Top-left)
+    ctx.fillStyle = suitColor;
+    ctx.font = `900 ${Math.round(w * 0.19)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(def.rank, -hw + 10, -hh + 9);
+    drawSuitIcon(ctx, def.suit, -hw + 18, -hh + 9 + w * 0.25, w * 0.075, suitColor);
+
+    // Bottom-right mirrored mini rank & suit
+    ctx.save();
+    ctx.rotate(Math.PI);
+    ctx.fillStyle = suitColor;
+    ctx.font = `900 ${Math.round(w * 0.16)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(def.rank, -hw + 10, -hh + 9);
+    ctx.restore();
+
+    // Center court crest or bold suit medallion
+    const isCourt = def.rank === 'K' || def.rank === 'Q' || def.rank === 'J';
+    const isAce = def.rank === 'A';
+
+    if (isCourt) {
+      // Geometric retro crown/medallion
+      ctx.save();
+      ctx.fillStyle = isNeg ? 'rgba(255,255,255,0.06)' : 'rgba(217,164,65,0.13)';
+      tracePixelRect(ctx, -w * 0.28, -h * 0.24, w * 0.56, h * 0.42, 6);
+      ctx.fill();
+      ctx.strokeStyle = isNeg ? 'rgba(167,139,250,0.38)' : 'rgba(217,164,65,0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Tiny crown pixels above central suit
+      ctx.fillStyle = isNeg ? '#FBBF24' : '#C89128';
+      const cw = w * 0.24;
+      const cyCrown = -h * 0.17;
+      ctx.beginPath();
+      ctx.moveTo(-cw / 2, cyCrown + 9);
+      ctx.lineTo(-cw / 2, cyCrown);
+      ctx.lineTo(-cw / 6, cyCrown + 5);
+      ctx.lineTo(0, cyCrown - 3);
+      ctx.lineTo(cw / 6, cyCrown + 5);
+      ctx.lineTo(cw / 2, cyCrown);
+      ctx.lineTo(cw / 2, cyCrown + 9);
+      ctx.closePath();
+      ctx.fill();
+
+      drawSuitIcon(ctx, def.suit, 0, h * 0.02, w * 0.17, suitColor);
+      ctx.restore();
+    } else if (isAce) {
+      ctx.save();
+      ctx.strokeStyle = isNeg ? 'rgba(56,189,248,0.35)' : 'rgba(24,34,48,0.14)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, -4, w * 0.25, 0, Math.PI * 2);
+      ctx.stroke();
+      drawSuitIcon(ctx, def.suit, 0, -4, w * 0.21, suitColor);
+      ctx.restore();
+    } else {
+      drawSuitIcon(ctx, def.suit, 0, -6, w * 0.18, suitColor);
+    }
+
+    // Mnemonic bottom strip right on the card
+    if (showFooterTag) {
+      const tagText = def.isScaling && inst.scalingBonus > 0
+        ? `+${inst.scalingBonus} MULT`
+        : def.tag;
+      const stripH = 22;
+      ctx.fillStyle = isNeg ? 'rgba(124, 58, 237, 0.35)' : 'rgba(16, 28, 36, 0.88)';
+      ctx.fillRect(-hw + 7, hh - stripH - 7, w - 14, stripH);
+      ctx.fillStyle = def.isScaling && inst.scalingBonus > 0 ? COLORS.goldLight : '#F8FAFC';
+      ctx.font = `800 ${Math.max(10, Math.round(w * 0.095))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(tagText, 0, hh - stripH / 2 - 6.5);
+    }
+
+    // Edition procedural animated sheen clipped to card silhouette
+    if (isFoil || isHolo || isPoly) {
+      ctx.save();
+      tracePixelRect(ctx, -hw, -hh, w, h, r);
+      ctx.clip();
+
+      if (isFoil) {
+        const sweep = ((state.time * 0.65 + inst.uid * 0.31) % 2.4) - 0.7;
+        const gx = -hw + sweep * w * 1.4;
+        const fg = ctx.createLinearGradient(gx - 35, -hh, gx + 35, hh);
+        fg.addColorStop(0, 'rgba(96, 165, 250, 0)');
+        fg.addColorStop(0.42, 'rgba(147, 197, 253, 0.36)');
+        fg.addColorStop(0.5, 'rgba(255, 255, 255, 0.58)');
+        fg.addColorStop(0.58, 'rgba(96, 165, 250, 0.32)');
+        fg.addColorStop(1, 'rgba(96, 165, 250, 0)');
+        ctx.fillStyle = fg;
+        ctx.fillRect(-hw, -hh, w, h);
+      } else if (isHolo) {
+        const shift = (state.time * 70 + inst.uid * 55) % 360;
+        const hg = ctx.createLinearGradient(-hw, -hh, hw, hh);
+        hg.addColorStop(0, `hsla(${(shift) % 360}, 95%, 62%, 0.24)`);
+        hg.addColorStop(0.25, `hsla(${(shift + 90) % 360}, 95%, 62%, 0.28)`);
+        hg.addColorStop(0.5, `hsla(${(shift + 180) % 360}, 95%, 65%, 0.28)`);
+        hg.addColorStop(0.75, `hsla(${(shift + 270) % 360}, 95%, 62%, 0.26)`);
+        hg.addColorStop(1, `hsla(${(shift + 350) % 360}, 95%, 62%, 0.22)`);
+        ctx.fillStyle = hg;
+        ctx.fillRect(-hw, -hh, w, h);
+      } else if (isPoly) {
+        const shift = (state.time * 110 + inst.uid * 47) % 360;
+        const pg = ctx.createLinearGradient(-hw, hh, hw, -hh);
+        pg.addColorStop(0, `hsla(${shift}, 100%, 60%, 0.30)`);
+        pg.addColorStop(0.35, `hsla(${(shift + 120) % 360}, 100%, 65%, 0.34)`);
+        pg.addColorStop(0.7, `hsla(${(shift + 240) % 360}, 100%, 62%, 0.32)`);
+        pg.addColorStop(1, `hsla(${(shift + 330) % 360}, 100%, 68%, 0.28)`);
+        ctx.fillStyle = pg;
+        ctx.fillRect(-hw, -hh, w, h);
+        // Prismatic gleam band
+        const sweep = ((state.time * 0.9 + inst.uid * 0.4) % 2.2) - 0.6;
+        const gx = -hw + sweep * w * 1.4;
+        const gl = ctx.createLinearGradient(gx - 22, -hh, gx + 22, hh);
+        gl.addColorStop(0, 'rgba(255,255,255,0)');
+        gl.addColorStop(0.5, 'rgba(255,255,255,0.45)');
+        gl.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = gl;
+        ctx.fillRect(-hw, -hh, w, h);
+      }
+      ctx.restore();
+    }
+
+    // Small top-right edition indicator dot/letter (paired with text in tooltip)
+    if (inst.edition !== 'standard') {
+      const edShort = { foil: 'FOIL', holographic: 'HOLO', polychrome: 'POLY', negative: 'NEG' }[inst.edition];
+      ctx.fillStyle = 'rgba(10, 16, 26, 0.85)';
+      ctx.fillRect(hw - 42, -hh + 8, 35, 16);
+      ctx.fillStyle = EDITIONS[inst.edition].color;
+      ctx.font = '800 9.5px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(edShort, hw - 24.5, -hh + 16.5);
+    }
+
+    // Debuffed overlay (The Blind Eye boss)
+    if (debuffed) {
+      tracePixelRect(ctx, -hw, -hh, w, h, r);
+      ctx.fillStyle = 'rgba(15, 8, 12, 0.56)';
+      ctx.fill();
+      ctx.strokeStyle = COLORS.multRed;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(-hw + 16, -hh + 20);
+      ctx.lineTo(hw - 16, hh - 20);
+      ctx.moveTo(hw - 16, -hh + 20);
+      ctx.lineTo(-hw + 16, hh - 20);
+      ctx.stroke();
+    }
+
+    // Trigger flash pulse
+    if (inst.flash > 0.02) {
+      tracePixelRect(ctx, -hw, -hh, w, h, r);
+      ctx.fillStyle = inst.pulseColor || '#FFFFFF';
+      ctx.globalAlpha = inst.flash * 0.42;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Crisp outer card stroke
+    tracePixelRect(ctx, -hw + 0.5, -hh + 0.5, w - 1, h - 1, r);
+    ctx.strokeStyle = hovered ? COLORS.brassBright : (isNeg ? '#A78BFA' : 'rgba(20, 30, 38, 0.55)');
+    ctx.lineWidth = hovered ? 2.5 : 1.5;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function registerButton(id, x, y, w, h, label, opts = {}) {
+    const rect = { x, y, w, h };
+    const hovered = !opts.disabled && hitTest(state.mouseX, state.mouseY, rect);
+    if (hovered) state.hoverButtonId = id;
+    state.buttons.push({ id, rect, onClick: opts.onClick, disabled: !!opts.disabled });
+
+    const {
+      fill = COLORS.railPanel,
+      hoverFill = '#1D303E',
+      border = COLORS.railBorderBright,
+      textColor = COLORS.textMain,
+      fontSize = 15,
+      sublabel = null,
+      lip = 4,
+      disabled = false
+    } = opts;
+
+    const pressY = hovered ? -1 : 0;
+    ctx.save();
+    ctx.globalAlpha = disabled ? 0.42 : 1;
+    drawBevelPanel(ctx, x, y + pressY, w, h, {
+      fill: hovered ? hoverFill : fill,
+      border: hovered ? COLORS.brassBright : border,
+      lip: disabled ? 2 : lip,
+      r: 7,
+      glow: hovered && opts.glow ? opts.glow : null
+    });
+
+    ctx.fillStyle = textColor;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `800 ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
+    if (sublabel) {
+      ctx.fillText(label, x + w / 2, y + pressY + h / 2 - 8);
+      ctx.font = '600 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.fillStyle = 'rgba(243,247,245,0.78)';
+      ctx.fillText(sublabel, x + w / 2, y + pressY + h / 2 + 11);
+    } else {
+      ctx.fillText(label, x + w / 2, y + pressY + h / 2 + 0.5);
+    }
+    ctx.restore();
+  }
+
+  function drawTableBackground() {
+    // Full viewport emerald casino felt with radial vignette
+    const cx = state.vw / 2;
+    const cy = state.vh / 2;
+    const maxR = Math.hypot(cx, cy) * 1.05;
+    const rad = ctx.createRadialGradient(cx, cy * 0.92, 40, cx, cy, maxR);
+    rad.addColorStop(0, COLORS.feltCenter);
+    rad.addColorStop(0.55, COLORS.feltMid);
+    rad.addColorStop(1, COLORS.feltEdge);
+    ctx.fillStyle = rad;
+    ctx.fillRect(0, 0, state.vw, state.vh);
+
+    // Subtle woven felt texture
+    const pat = ctx.createPattern(feltPatternCanvas, 'repeat');
+    if (pat) {
+      ctx.fillStyle = pat;
+      ctx.fillRect(0, 0, state.vw, state.vh);
+    }
+
+    // Subtle decorative casino inlay arc
+    ctx.save();
+    ctx.strokeStyle = 'rgba(217, 164, 65, 0.07)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + state.vh * 0.08, state.vw * 0.43, state.vh * 0.39, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawLeftHUD() {
+    const x = 24, y = 24, w = 288, h = 712;
+    drawBevelPanel(ctx, x, y, w, h, {
+      fill: COLORS.railBg,
+      border: COLORS.railBorder,
+      lip: 5,
+      r: 10
+    });
+
+    // 1. Stage & Blind Plate
+    const isBoss = Boolean(state.activeBoss);
+    const blindLabel = getStageLabel(state.stage);
+    const stageStr = state.endless ? `ENDLESS ${state.stage}` : `STAGE ${state.stage} / 9`;
+
+    drawBevelPanel(ctx, x + 14, y + 14, w - 28, isBoss ? 140 : 108, {
+      fill: isBoss ? '#221218' : '#14232E',
+      border: isBoss ? COLORS.multRed : COLORS.railBorderBright,
+      lip: 3,
+      r: 7
+    });
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.font = '800 12px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = isBoss ? COLORS.multLight : COLORS.brassBright;
+    ctx.fillText(blindLabel, x + 28, y + 26);
+
+    ctx.textAlign = 'right';
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText(stageStr, x + w - 28, y + 26);
+
+    ctx.textAlign = 'center';
+    ctx.font = '700 11px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText('TARGET SCORE', x + w / 2, y + 52);
+
+    ctx.font = '900 32px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = COLORS.goldLight;
+    ctx.fillText(fmtNum(state.targetScore), x + w / 2, y + 70);
+
+    if (isBoss) {
+      ctx.fillStyle = 'rgba(220, 38, 38, 0.24)';
+      ctx.fillRect(x + 22, y + 109, w - 44, 38);
+      ctx.font = '800 10.5px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.fillStyle = '#FCA5A5';
+      ctx.fillText(state.activeBoss.name.toUpperCase(), x + w / 2, y + 114);
+      ctx.font = '700 11.5px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = '#FFF1F2';
+      ctx.fillText(state.activeBoss.short, x + w / 2, y + 129);
+    }
+
+    // 2. Round Score Progress Block
+    const scY = isBoss ? y + 166 : y + 136;
+    drawBevelPanel(ctx, x + 14, scY, w - 28, 94, {
+      fill: '#101B23',
+      border: state.stageScore >= state.targetScore ? COLORS.emerald : COLORS.railBorder,
+      lip: 3,
+      r: 7
+    });
+
+    ctx.textAlign = 'center';
+    ctx.font = '700 11px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText('STAGE SCORE', x + w / 2, scY + 12);
+
+    ctx.font = '900 34px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = state.stageScore >= state.targetScore ? '#6EE7B7' : COLORS.textMain;
+    ctx.fillText(fmtNum(state.displayScore), x + w / 2, scY + 30);
+
+    // Progress bar
+    const barX = x + 28, barY = scY + 72, barW = w - 56, barH = 10;
+    ctx.fillStyle = '#091117';
+    ctx.fillRect(barX, barY, barW, barH);
+    const pct = clamp(state.displayScore / Math.max(1, state.targetScore), 0, 1);
+    if (pct > 0) {
+      ctx.fillStyle = pct >= 1 ? COLORS.emerald : COLORS.brass;
+      ctx.fillRect(barX, barY, barW * pct, barH);
+    }
+    ctx.strokeStyle = COLORS.railBorder;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(barX + 0.5, barY + 0.5, barW - 1, barH - 1);
+
+    // 3. Live Hand Preview & Chips x Mult
+    const cmY = scY + 106;
+    drawBevelPanel(ctx, x + 14, cmY, w - 28, 128, {
+      fill: '#111D26',
+      border: COLORS.railBorder,
+      lip: 3,
+      r: 7
+    });
+
+    ctx.textAlign = 'center';
+    ctx.font = '800 16px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = state.liveHandName ? COLORS.textMain : COLORS.textDim;
+    ctx.fillText(state.liveHandName || 'Select 1–3 Dice', x + w / 2, cmY + 14);
+
+    // Chips box
+    const boxY = cmY + 42, boxW = 104, boxH = 54;
+    drawBevelPanel(ctx, x + 26, boxY, boxW, boxH, {
+      fill: COLORS.chipsBlue,
+      border: COLORS.chipsLight,
+      lip: 3,
+      r: 6
+    });
+    ctx.font = '900 24px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(fmtNum(state.chips), x + 26 + boxW / 2, boxY + boxH / 2 + 1);
+
+    // X operator
+    ctx.font = '900 24px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.multLight;
+    ctx.fillText('×', x + w / 2, boxY + boxH / 2 + 1);
+
+    // Mult box
+    drawBevelPanel(ctx, x + w - 26 - boxW, boxY, boxW, boxH, {
+      fill: COLORS.multRed,
+      border: COLORS.multLight,
+      lip: 3,
+      r: 6
+    });
+    ctx.font = '900 24px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText(fmtMult(state.mult), x + w - 26 - boxW / 2, boxY + boxH / 2 + 1);
+
+    // Sub-caption under Chips x Mult
+    ctx.textBaseline = 'top';
+    ctx.font = '700 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+    if (state.mode === 'SCORING' && state.scoringHandTotal > 0) {
+      ctx.fillStyle = COLORS.goldLight;
+      ctx.fillText('HAND TOTAL: ' + fmtNum(state.scoringHandTotal), x + w / 2, cmY + 106);
+    } else if (state.liveHandName) {
+      const sel = state.dice.filter(d => d.selected);
+      const pipSum = sel.reduce((a, d) => a + (isDieDebuffedByBoss(d.value) ? 0 : d.value), 0);
+      ctx.fillStyle = COLORS.textMuted;
+      ctx.fillText(`Base + ${pipSum} pip Chips before cards`, x + w / 2, cmY + 106);
+    } else {
+      ctx.fillStyle = COLORS.textDim;
+      ctx.fillText('CHIPS  ×  MULT', x + w / 2, cmY + 106);
+    }
+
+    // 4. Resources (Hands, Rerolls, Bankroll)
+    const resY = cmY + 140;
+    const halfW = (w - 38) / 2;
+
+    // Hands
+    drawBevelPanel(ctx, x + 14, resY, halfW, 66, {
+      fill: '#13202A', border: COLORS.railBorder, lip: 3, r: 7
+    });
+    ctx.textAlign = 'center';
+    ctx.font = '700 11px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText('HANDS', x + 14 + halfW / 2, resY + 10);
+    ctx.font = '900 28px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = state.handsLeft <= 1 ? COLORS.multLight : COLORS.chipsLight;
+    ctx.fillText(String(state.handsLeft), x + 14 + halfW / 2, resY + 28);
+
+    // Rerolls
+    drawBevelPanel(ctx, x + 24 + halfW, resY, halfW, 66, {
+      fill: '#13202A', border: COLORS.railBorder, lip: 3, r: 7
+    });
+    ctx.font = '700 11px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText('REROLLS', x + 24 + halfW * 1.5, resY + 10);
+    ctx.font = '900 28px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = state.rerollsLeft === 0 ? COLORS.textDim : COLORS.brassBright;
+    ctx.fillText(String(state.rerollsLeft), x + 24 + halfW * 1.5, resY + 28);
+
+    // Bankroll + Interest indicator
+    const monY = resY + 76;
+    drawBevelPanel(ctx, x + 14, monY, w - 28, 66, {
+      fill: '#1A1C14', border: '#66521E', lip: 3, r: 7
+    });
+    const nextInterest = Math.min(MAX_INTEREST, Math.floor(state.money / 5));
+    ctx.textAlign = 'left';
+    ctx.font = '700 11px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText('BANKROLL', x + 28, monY + 11);
+    ctx.font = '900 28px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = COLORS.goldLight;
+    ctx.fillText('$' + state.money, x + 28, monY + 28);
+
+    ctx.textAlign = 'right';
+    ctx.font = '700 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = nextInterest > 0 ? '#86EFAC' : COLORS.textDim;
+    ctx.fillText('INTEREST +$' + nextInterest, x + w - 28, monY + 22);
+    ctx.font = '600 10px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText('$1 per $5 (max $5)', x + w - 28, monY + 40);
+
+    // 5. Utility Controls (2x2 Grid pinned neatly at bottom of rail)
+    const utilY = y + h - 102;
+    const btnW = (w - 38) / 2;
+    const btnH = 38;
+    registerButton('hud_guide', x + 14, utilY, btnW, btnH, 'HAND GUIDE', {
+      fill: '#162632', hoverFill: '#1F3546', fontSize: 12,
+      onClick: () => { sfx.click(); state.modal = state.modal === 'GUIDE' ? null : 'GUIDE'; }
+    });
+    registerButton('hud_crt', x + 24 + btnW, utilY, btnW, btnH, state.crtEnabled ? 'CRT: ON' : 'CRT: OFF', {
+      fill: state.crtEnabled ? '#17312A' : '#162632',
+      hoverFill: '#214038',
+      border: state.crtEnabled ? COLORS.emerald : COLORS.railBorderBright,
+      fontSize: 12,
+      onClick: () => { sfx.click(); state.crtEnabled = !state.crtEnabled; }
+    });
+    registerButton('hud_sfx', x + 14, utilY + 46, btnW, btnH, sfx.muted ? 'SFX: OFF' : 'SFX: ON', {
+      fill: '#162632', hoverFill: '#1F3546', fontSize: 12,
+      onClick: () => { sfx.muted = !sfx.muted; if (!sfx.muted) sfx.click(); }
+    });
+    registerButton('hud_pause', x + 24 + btnW, utilY + 46, btnW, btnH, 'MENU', {
+      fill: '#162632', hoverFill: '#1F3546', fontSize: 12,
+      onClick: () => { sfx.click(); state.modal = state.modal === 'PAUSE' ? null : 'PAUSE'; }
+    });
+  }
+
+  function drawModifierCardTray() {
+    const x = 336, y = 24, w = 920, h = 238;
+    drawBevelPanel(ctx, x, y, w, h, {
+      fill: 'rgba(6, 22, 16, 0.78)',
+      border: 'rgba(217, 164, 65, 0.28)',
+      lip: 4,
+      r: 10
+    });
+
+    const usedSlots = getUsedCardSlots();
+    const maxSlots = getMaxCardSlots();
+    const negBonus = maxSlots - BASE_MAX_SLOTS;
+
+    // Quiet unboxed header metadata
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.font = '800 12px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = COLORS.brassBright;
+    ctx.fillText('MODIFIER CARDS', x + 18, y + 12);
+
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.font = '700 12px ui-monospace, SFMono-Regular, Menlo, monospace';
+    const slotLabel = negBonus > 0
+      ? `·  ${state.activeCards.length} / ${maxSlots} SLOTS (+${negBonus} Negative)`
+      : `·  ${usedSlots} / ${BASE_MAX_SLOTS} SLOTS`;
+    ctx.fillText(slotLabel, x + 144, y + 12);
+
+    ctx.textAlign = 'right';
+    ctx.font = '600 11.5px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(186, 212, 198, 0.65)';
+    ctx.fillText('Triggers left → right · Drag or click card to reorder / sell', x + w - 18, y + 12);
+
+    // Draw empty slot outlines when fewer than 5 cards
+    const layout = getActiveCardLayout();
+    if (state.activeCards.length === 0) {
+      const emptyW = 114, emptyH = 156, gap = 22;
+      const tot = 5 * emptyW + 4 * gap;
+      const sx = x + (w - tot) / 2;
+      for (let i = 0; i < 5; i++) {
+        tracePixelRect(ctx, sx + i * (emptyW + gap), y + 48, emptyW, emptyH, 8);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 6]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.textAlign = 'center';
+      ctx.font = '600 14px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = 'rgba(195, 222, 208, 0.45)';
+      ctx.fillText('Beat Stage 1 to visit the Shop and draft Playing Card modifiers', x + w / 2, y + 122);
+      return;
+    }
+
+    // Update target positions and draw non-dragged cards first
+    const canManage = (state.mode === 'PLAYING' || state.mode === 'SHOP') && !state.modal;
+
+    state.activeCards.forEach((card, idx) => {
+      card.targetX = layout.startX + idx * (layout.cardW + layout.gap) + layout.cardW / 2;
+      card.targetY = layout.centerY;
+      if (card.x === 0 && card.y === 0) {
+        card.x = card.targetX;
+        card.y = card.targetY;
+      }
+    });
+
+    let draggedEntry = null;
+    state.activeCards.forEach((card, idx) => {
+      const isDragged = state.drag && state.drag.active && state.drag.card === card;
+      if (isDragged) {
+        draggedEntry = { card, idx };
+        return;
+      }
+      const rect = {
+        x: card.x - layout.cardW / 2,
+        y: card.y - layout.cardH / 2,
+        w: layout.cardW,
+        h: layout.cardH
+      };
+      const isHovered = !state.modal && !state.drag?.active && hitTest(state.mouseX, state.mouseY, rect);
+      if (isHovered) {
+        state.hoveredCard = { zone: 'active', card, idx, rect };
+      }
+      const isFocused = state.focusedActiveUid === card.uid;
+
+      drawPlayingCard(ctx, card, card.x, card.y, layout.cardW, layout.cardH, {
+        debuffed: isCardDebuffedByBoss(idx),
+        hovered: isHovered || isFocused
+      });
+
+      // Render precision controls (◀ | SELL | ▶) when focused or hovered in PLAYING/SHOP
+      if (canManage && isFocused) {
+        const barY = card.y + layout.cardH / 2 + 6;
+        const bw = Math.max(122, layout.cardW + 6);
+        const bx = card.x - bw / 2;
+        registerButton(`card_left_${card.uid}`, bx, barY, 28, 24, '◀', {
+          fill: '#172936', hoverFill: '#244054', fontSize: 11, lip: 2,
+          disabled: idx === 0,
+          onClick: () => moveActiveCard(idx, -1)
+        });
+        registerButton(`card_sell_${card.uid}`, bx + 31, barY, bw - 62, 24, `SELL $${card.sellValue}`, {
+          fill: '#5C1E24', hoverFill: '#8B2630', border: '#F87171', fontSize: 10.5, lip: 2,
+          onClick: () => sellActiveCard(idx)
+        });
+        registerButton(`card_right_${card.uid}`, bx + bw - 28, barY, 28, 24, '▶', {
+          fill: '#172936', hoverFill: '#244054', fontSize: 11, lip: 2,
+          disabled: idx === state.activeCards.length - 1,
+          onClick: () => moveActiveCard(idx, 1)
+        });
+      }
+    });
+
+    // Draw dragged card on top
+    if (draggedEntry) {
+      drawPlayingCard(ctx, draggedEntry.card, state.drag.curX, state.drag.curY, layout.cardW, layout.cardH, {
+        debuffed: isCardDebuffedByBoss(draggedEntry.idx),
+        hovered: true,
+        dragging: true,
+        tilt: clamp((state.drag.curX - draggedEntry.card.x) * 0.004, -0.18, 0.18)
+      });
+    }
+  }
+
+  function drawPlayArena() {
+    // Contextual status / scoring cascade banner
+    const cx = 796;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    if (state.mode === 'SCORING' && state.scoringBanner) {
+      drawBevelPanel(ctx, 446, 284, 700, 42, {
+        fill: 'rgba(14, 23, 30, 0.92)',
+        border: COLORS.brass,
+        lip: 3,
+        r: 7
+      });
+      ctx.font = '800 16px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.fillStyle = COLORS.goldLight;
+      ctx.fillText(state.scoringBanner, cx, 305);
+    } else if (state.noticeTimer > 0 && state.noticeText) {
+      drawBevelPanel(ctx, 446, 284, 700, 42, {
+        fill: 'rgba(42, 18, 22, 0.92)',
+        border: COLORS.multLight,
+        lip: 3,
+        r: 7
+      });
+      ctx.font = '700 14px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = '#FECACA';
+      ctx.fillText(state.noticeText, cx, 305);
+    } else {
+      ctx.font = '600 14px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = 'rgba(202, 228, 215, 0.68)';
+      ctx.fillText('Click 1–3 dice to form a hand · Reroll tumbles unselected dice', cx, 305);
+    }
+
+    // Subtle recessed dice lane
+    tracePixelRect(ctx, 366, 368, 860, 214, 14);
+    ctx.fillStyle = 'rgba(4, 18, 13, 0.34)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(217, 164, 65, 0.14)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Draw all 5 dice
+    for (const d of state.dice) {
+      drawDie(ctx, d, false);
+    }
+
+    // Primary Action Controls
+    const selectedCount = state.dice.filter(d => d.selected).length;
+    const unselectedCount = state.dice.length - selectedCount;
+    const locked = state.mode !== 'PLAYING' || Boolean(state.modal) || isAnyDieTumbling();
+    const minDiceNeeded = (state.activeBoss && state.activeBoss.id === 'MIN_TWO_DICE') ? 2 : 1;
+
+    const btnY = 636;
+    registerButton('btn_play', 446, btnY, 260, 66, 'PLAY HAND', {
+      fill: '#15803D',
+      hoverFill: '#16A34A',
+      border: '#4ADE80',
+      fontSize: 19,
+      sublabel: selectedCount >= minDiceNeeded ? `${state.liveHandName}  [Space]` : `Select ${minDiceNeeded}–3 Dice`,
+      glow: 'rgba(74, 222, 128, 0.35)',
+      disabled: locked || selectedCount < minDiceNeeded,
+      onClick: playSelectedHand
+    });
+
+    const rerollLabel = selectedCount === 0
+      ? `REROLL ALL (${state.rerollsLeft})`
+      : `REROLL ${unselectedCount} (${state.rerollsLeft})`;
+    registerButton('btn_reroll', 724, btnY, 260, 66, rerollLabel, {
+      fill: '#B45309',
+      hoverFill: '#D97706',
+      border: '#FCD34D',
+      fontSize: 18,
+      sublabel: selectedCount > 0 ? `Keep ${selectedCount} selected  [R]` : 'Tumble all 5 dice  [R]',
+      glow: 'rgba(252, 211, 77, 0.3)',
+      disabled: locked || state.rerollsLeft <= 0 || unselectedCount === 0,
+      onClick: triggerReroll
+    });
+
+    registerButton('btn_clear', 1002, btnY, 138, 66, 'CLEAR', {
+      fill: '#182834',
+      hoverFill: '#243B4D',
+      border: COLORS.railBorderBright,
+      fontSize: 15,
+      sublabel: '[C]',
+      disabled: locked || selectedCount === 0,
+      onClick: clearSelectedDice
+    });
+  }
+
+  function drawCashOutPanel() {
+    const d = state.cashOutData;
+    if (!d) return;
+    const x = 496, y = 294, w = 600, h = 412;
+    drawBevelPanel(ctx, x, y, w, h, {
+      fill: '#101B22',
+      border: COLORS.brassBright,
+      lip: 6,
+      r: 12,
+      glow: 'rgba(246, 202, 101, 0.25)'
+    });
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.font = '900 28px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = '#6EE7B7';
+    ctx.fillText(d.isRunVictory ? 'STAGE 9 BOSS DEFEATED!' : `STAGE ${state.stage} CLEARED!`, x + w / 2, y + 26);
+
+    ctx.font = '600 13px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText(`Score ${fmtNum(state.stageScore)}  /  Target ${fmtNum(state.targetScore)}`, x + w / 2, y + 64);
+
+    // Ledger rows
+    const rows = [
+      { label: `${getStageLabel(state.stage)} Clear Bonus`, val: `+$${d.baseReward}`, show: state.cashOutReveal >= 0.15 },
+      { label: `Remaining Hands (${d.handsCount} × $1)`, val: `+$${d.handsBonus}`, show: state.cashOutReveal >= 0.45 },
+      { label: `Interest ($1 per $5 saved, max $5)`, val: `+$${d.interest}`, show: state.cashOutReveal >= 0.75 }
+    ];
+
+    let ry = y + 114;
+    for (const row of rows) {
+      if (row.show) {
+        ctx.textAlign = 'left';
+        ctx.font = '600 16px ui-sans-serif, system-ui, sans-serif';
+        ctx.fillStyle = COLORS.textMain;
+        ctx.fillText(row.label, x + 48, ry);
+        ctx.textAlign = 'right';
+        ctx.font = '800 19px ui-monospace, SFMono-Regular, Menlo, monospace';
+        ctx.fillStyle = COLORS.goldLight;
+        ctx.fillText(row.val, x + w - 48, ry - 2);
+      }
+      ry += 44;
+    }
+
+    // Divider
+    ctx.strokeStyle = COLORS.railBorderBright;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x + 48, ry + 8);
+    ctx.lineTo(x + w - 48, ry + 8);
+    ctx.stroke();
+
+    // Total
+    ctx.textAlign = 'left';
+    ctx.font = '800 18px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.textMain;
+    ctx.fillText('TOTAL PAYOUT', x + 48, ry + 26);
+    ctx.textAlign = 'right';
+    ctx.font = '900 28px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = COLORS.goldLight;
+    ctx.fillText(`+$${d.total}`, x + w - 48, ry + 20);
+
+    registerButton('btn_cashout', x + 110, y + h - 84, w - 220, 58,
+      d.isRunVictory ? 'CLAIM VICTORY' : 'CASH OUT → SHOP', {
+        fill: '#D97706',
+        hoverFill: '#F59E0B',
+        border: '#FDE047',
+        textColor: '#0B1318',
+        fontSize: 18,
+        sublabel: '[Space / Enter]',
+        glow: 'rgba(253, 224, 71, 0.35)',
+        onClick: claimCashOut
+      });
+  }
+
+  function drawShopArena() {
+    const x = 336, y = 278, w = 920, h = 458;
+    drawBevelPanel(ctx, x, y, w, h, {
+      fill: 'rgba(13, 23, 30, 0.90)',
+      border: COLORS.brass,
+      lip: 5,
+      r: 10
+    });
+
+    // Shop Header
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.font = '900 24px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.brassBright;
+    ctx.fillText('CARD SHOP', x + 26, y + 18);
+
+    const nextStage = state.stage + 1;
+    const nextIsBoss = nextStage % 3 === 0;
+    ctx.textAlign = 'right';
+    ctx.font = '700 13px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = nextIsBoss ? COLORS.multLight : COLORS.textMuted;
+    ctx.fillText(
+      `Next: Stage ${nextStage} (${getStageLabel(nextStage)}) · Target ${fmtNum(getStageTarget(nextStage))}`,
+      x + w - 26,
+      y + 24
+    );
+
+    if (state.noticeTimer > 0 && state.noticeText) {
+      ctx.textAlign = 'center';
+      ctx.font = '700 13px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = '#FECACA';
+      ctx.fillText(state.noticeText, x + w / 2, y + 54);
+    } else {
+      ctx.textAlign = 'center';
+      ctx.font = '600 13px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = COLORS.textMuted;
+      ctx.fillText('Hover any card for trigger & edition details · Save $5 increments for Interest', x + w / 2, y + 54);
+    }
+
+    // 3 Showcase Cards
+    const rects = getShopCardRects();
+    const slotsFull = state.activeCards.length >= getMaxCardSlots();
+
+    rects.forEach((r, idx) => {
+      const card = state.shopCards[idx];
+
+      // Pedestal backing
+      tracePixelRect(ctx, r.x - 14, r.y - 12, r.w + 28, r.h + 76, 10);
+      ctx.fillStyle = 'rgba(5, 13, 18, 0.65)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      if (!card) {
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '800 15px ui-monospace, SFMono-Regular, Menlo, monospace';
+        ctx.fillStyle = COLORS.textDim;
+        ctx.fillText('SOLD', r.x + r.w / 2, r.y + r.h / 2);
+        return;
+      }
+
+      const hovered = !state.modal && hitTest(state.mouseX, state.mouseY, r);
+      if (hovered) {
+        state.hoveredCard = { zone: 'shop', card, idx, rect: r };
+      }
+
+      drawPlayingCard(ctx, card, r.x + r.w / 2, r.y + r.h / 2, r.w, r.h, {
+        hovered
+      });
+
+      const isNeg = card.edition === 'negative';
+      const canAfford = state.money >= card.price;
+      const canFit = isNeg || !slotsFull;
+      const buyDisabled = !canAfford || !canFit || Boolean(state.modal);
+      let buyLabel = `BUY $${card.price}`;
+      if (!canFit) buyLabel = 'SLOTS FULL';
+      else if (isNeg) buyLabel = `BUY $${card.price} (+1)`;
+
+      registerButton(`shop_buy_${idx}`, r.x - 4, r.y + r.h + 14, r.w + 8, 40, buyLabel, {
+        fill: buyDisabled ? '#1B252E' : '#15803D',
+        hoverFill: '#16A34A',
+        border: buyDisabled ? COLORS.railBorder : '#4ADE80',
+        fontSize: 14,
+        disabled: buyDisabled,
+        onClick: () => buyShopCard(idx)
+      });
+    });
+
+    // Bottom Shop Action Bar
+    const actY = y + h - 76;
+    registerButton('shop_reroll', x + 150, actY, 260, 56, `REROLL SHOP ($${SHOP_REROLL_COST})`, {
+      fill: '#B45309',
+      hoverFill: '#D97706',
+      border: '#FCD34D',
+      fontSize: 16,
+      sublabel: 'Fresh 3 cards  [R]',
+      disabled: state.money < SHOP_REROLL_COST || Boolean(state.modal),
+      onClick: rerollShop
+    });
+
+    registerButton('shop_next', x + w - 410, actY, 260, 56, `NEXT STAGE (${nextStage}) ▸`, {
+      fill: '#2563EB',
+      hoverFill: '#3B82F6',
+      border: '#93C5FD',
+      fontSize: 17,
+      sublabel: `${getStageLabel(nextStage)}  [Space]`,
+      glow: 'rgba(96, 165, 250, 0.35)',
+      disabled: Boolean(state.modal),
+      onClick: () => startStage(nextStage)
+    });
+  }
+
+  function drawCardTooltip() {
+    if (!state.hoveredCard || state.modal || (state.drag && state.drag.active)) return;
+    const { zone, card, idx, rect } = state.hoveredCard;
+    const def = CARD_BY_ID[card.cardId];
+    const ed = EDITIONS[card.edition];
+    const debuffed = zone === 'active' && isCardDebuffedByBoss(idx);
+
+    const tipW = 286;
+    ctx.font = '600 13px ui-sans-serif, system-ui, sans-serif';
+    const descLines = wrapLines(ctx, def.desc, tipW - 28);
+    let tipH = 66 + descLines.length * 18;
+    if (ed.bonusText) tipH += 26;
+    if (def.isScaling) tipH += 22;
+    if (debuffed) tipH += 24;
+    tipH += 24; // Footer sell/price line
+
+    let tx = rect.x + rect.w / 2 - tipW / 2;
+    tx = clamp(tx, 336, LOGICAL_W - tipW - 18);
+    // Position below active tray cards, or above shop cards
+    let ty = zone === 'active' ? rect.y + rect.h + 38 : rect.y - tipH - 16;
+    if (ty + tipH > LOGICAL_H - 14) ty = rect.y - tipH - 12;
+    if (ty < 14) ty = 14;
+
+    drawBevelPanel(ctx, tx, ty, tipW, tipH, {
+      fill: 'rgba(10, 17, 24, 0.97)',
+      border: card.edition !== 'standard' ? ed.color : COLORS.brassBright,
+      lip: 4,
+      r: 8,
+      glow: 'rgba(0,0,0,0.6)'
+    });
+
+    let curY = ty + 14;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.font = '800 15px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.textMain;
+    ctx.fillText(def.name, tx + 14, curY);
+
+    ctx.textAlign = 'right';
+    ctx.font = '800 14px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = getSuitColor(def.suit, card.edition === 'negative');
+    ctx.fillText(def.rank + SUIT_SYMBOLS[def.suit], tx + tipW - 14, curY);
+
+    curY += 22;
+    ctx.textAlign = 'left';
+    ctx.font = '700 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = ed.color;
+    ctx.fillText(ed.name.toUpperCase() + ' EDITION  ·  ' + def.rarity.toUpperCase(), tx + 14, curY);
+
+    curY += 20;
+    ctx.font = '600 13px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = '#E2ECE7';
+    for (const line of descLines) {
+      ctx.fillText(line, tx + 14, curY);
+      curY += 18;
+    }
+
+    if (def.isScaling) {
+      curY += 4;
+      ctx.font = '800 12px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.fillStyle = COLORS.goldLight;
+      ctx.fillText(`Current Bonus: +${card.scalingBonus || 0} Mult`, tx + 14, curY);
+      curY += 18;
+    }
+
+    if (ed.bonusText) {
+      curY += 6;
+      ctx.font = '700 12px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = ed.color;
+      ctx.fillText(`${ed.name}: ${ed.bonusText}`, tx + 14, curY);
+      curY += 20;
+    }
+
+    if (debuffed) {
+      curY += 4;
+      ctx.font = '800 12px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = COLORS.multLight;
+      ctx.fillText('DISABLED BY BOSS (Drag right to restore)', tx + 14, curY);
+      curY += 20;
+    }
+
+    curY += 6;
+    ctx.font = '600 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = COLORS.textMuted;
+    if (zone === 'active') {
+      ctx.fillText(`Sell Value: $${card.sellValue} · Click card for controls`, tx + 14, curY);
+    } else {
+      ctx.fillText(`Shop Price: $${card.price} · Sell Value: $${card.sellValue}`, tx + 14, curY);
+    }
+  }
+
+  function drawTitleScreen() {
+    // Live atmospheric dice gently bobbing on felt flanks
+    for (const td of state.titleDice) {
+      const bob = Math.sin(state.time * 1.6 + td.phase) * 10;
+      drawDie(ctx, {
+        id: 0,
+        value: td.value,
+        x: td.x,
+        y: td.y + bob,
+        targetY: td.y + 18,
+        angle: td.rot + Math.sin(state.time * 0.9 + td.phase) * 0.06,
+        tumbleTimer: 0,
+        scale: 1,
+        hop: 0,
+        flash: 0
+      }, true);
+    }
+
+    // Fan of shimmering signature modifier cards
+    const fanCx = LOGICAL_W / 2;
+    const fanCy = 468;
+    state.titleCards.forEach((c, i) => {
+      const offset = i - 2;
+      const angle = offset * 0.14 + Math.sin(state.time * 1.1 + i) * 0.015;
+      const cx = fanCx + offset * 92;
+      const cy = fanCy + Math.abs(offset) * 16 + Math.sin(state.time * 1.8 + i * 0.7) * 5;
+      drawPlayingCard(ctx, c, cx, cy, 114, 156, { tilt: angle });
+    });
+
+    // Bespoke retro-modern pixel-vector title lockup
+    const titleY = 178;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Brass decorative rule & suit emblem
+    drawSuitIcon(ctx, 'spades', fanCx - 220, titleY - 56, 11, COLORS.brass);
+    drawSuitIcon(ctx, 'hearts', fanCx - 192, titleY - 56, 11, COLORS.suitHearts);
+    drawSuitIcon(ctx, 'diamonds', fanCx + 192, titleY - 56, 11, COLORS.suitDiamonds);
+    drawSuitIcon(ctx, 'clubs', fanCx + 220, titleY - 56, 11, COLORS.emerald);
+
+    ctx.font = '800 13px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = COLORS.brassBright;
+    ctx.fillText('ROGUELIKE DICE & CARD DECKBUILDER', fanCx, titleY - 56);
+
+    // Layered phosphor shadow + gold/ivory title
+    ctx.font = '900 84px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = '#04120D';
+    ctx.fillText('VELVET ROLL', fanCx + 5, titleY + 7);
+    ctx.fillStyle = COLORS.brass;
+    ctx.fillText('VELVET ROLL', fanCx + 2, titleY + 3);
+    ctx.shadowColor = 'rgba(246, 202, 101, 0.35)';
+    ctx.shadowBlur = 24;
+    ctx.fillStyle = '#FFFDF7';
+    ctx.fillText('VELVET ROLL', fanCx, titleY);
+    ctx.restore();
+
+    // Subtitle
+    ctx.textAlign = 'center';
+    ctx.font = '600 16px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = '#C7DFD3';
+    ctx.fillText('Sculpt 3-dice combos · Stack 18 card modifiers across 5 editions · Beat 9 stages + Endless', fanCx, 250);
+
+    // Primary CTA
+    registerButton('title_play', fanCx - 140, 286, 280, 62, 'PLAY RUN', {
+      fill: '#15803D',
+      hoverFill: '#16A34A',
+      border: '#4ADE80',
+      fontSize: 22,
+      sublabel: 'Press Enter or Space',
+      glow: 'rgba(74, 222, 128, 0.4)',
+      onClick: startNewRun
+    });
+
+    // Compact secondary utility row
+    registerButton('title_guide', fanCx - 175, 594, 165, 42, 'HANDS & RULES', {
+      fill: '#13222C', hoverFill: '#1D3342', fontSize: 13,
+      onClick: () => { sfx.click(); state.modal = 'GUIDE'; }
+    });
+    registerButton('title_crt', fanCx + 10, 594, 165, 42, state.crtEnabled ? 'CRT GLOW: ON' : 'CRT GLOW: OFF', {
+      fill: '#13222C', hoverFill: '#1D3342', fontSize: 13,
+      onClick: () => { sfx.click(); state.crtEnabled = !state.crtEnabled; }
+    });
+
+    // Clean unboxed local stats if available
+    if (state.stats.bestHand > 0 || state.stats.wins > 0) {
+      ctx.font = '700 13px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.fillStyle = COLORS.brassBright;
+      ctx.fillText(
+        `Best Hand: ${fmtNum(state.stats.bestHand)}   ·   Best Stage: ${state.stats.bestStage}   ·   Runs Won: ${state.stats.wins}`,
+        fanCx,
+        664
+      );
+    }
+
+    // Single flat control-hint line
+    ctx.font = '600 12.5px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = 'rgba(182, 212, 198, 0.58)';
+    ctx.fillText('Click Dice (1–5) · Space Play Hand · R Reroll · Drag Cards to Reorder · Esc Pause', fanCx, 718);
+  }
+
+  function drawEndModal(isVictory) {
+    state.buttons = [];
+    state.hoverButtonId = null;
+    state.hoveredCard = null;
+    ctx.fillStyle = 'rgba(3, 10, 8, 0.78)';
+    ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+
+    const w = 560, h = 420;
+    const x = (LOGICAL_W - w) / 2;
+    const y = (LOGICAL_H - h) / 2;
+    drawBevelPanel(ctx, x, y, w, h, {
+      fill: '#0F1A22',
+      border: isVictory ? COLORS.brassBright : COLORS.multRed,
+      lip: 6,
+      r: 12,
+      glow: isVictory ? 'rgba(246, 202, 101, 0.3)' : 'rgba(220, 38, 38, 0.3)'
+    });
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.font = '900 36px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = isVictory ? COLORS.goldLight : COLORS.multLight;
+    ctx.fillText(isVictory ? 'RUN VICTORY!' : 'OUT OF HANDS', x + w / 2, y + 32);
+
+    ctx.font = '600 15px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText(
+      isVictory
+        ? 'You conquered all 9 stages and 3 Boss Blinds!'
+        : `Stopped at Stage ${state.stage} (${fmtNum(state.stageScore)} / ${fmtNum(state.targetScore)})`,
+      x + w / 2,
+      y + 82
+    );
+
+    // Run stats summary
+    const rows = [
+      ['Stage Reached', state.endless ? `Endless ${state.stage}` : `${state.stage} / 9`],
+      ['Best Single Hand', fmtNum(state.bestHandScore)],
+      ['Hands Played', String(state.handsPlayedRun)],
+      ['Total Money Earned', '$' + state.totalMoneyEarned],
+      ['Final Modifier Cards', String(state.activeCards.length)]
+    ];
+
+    let ry = y + 132;
+    for (const [k, v] of rows) {
+      ctx.textAlign = 'left';
+      ctx.font = '600 14px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = COLORS.textMuted;
+      ctx.fillText(k, x + 64, ry);
+      ctx.textAlign = 'right';
+      ctx.font = '800 16px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.fillStyle = COLORS.textMain;
+      ctx.fillText(v, x + w - 64, ry - 1);
+      ry += 32;
+    }
+
+    if (isVictory) {
+      registerButton('end_endless', x + 44, y + h - 84, 228, 54, 'CONTINUE ENDLESS', {
+        fill: '#7C3AED', hoverFill: '#8B5CF6', border: '#C4B5FD', fontSize: 15,
+        onClick: () => {
+          sfx.buyCard();
+          state.endless = true;
+          enterShop();
+        }
+      });
+      registerButton('end_new', x + w - 272, y + h - 84, 228, 54, 'NEW RUN', {
+        fill: '#15803D', hoverFill: '#16A34A', border: '#4ADE80', fontSize: 16,
+        onClick: startNewRun
+      });
+    } else {
+      registerButton('end_retry', x + 70, y + h - 84, 200, 54, 'PLAY AGAIN', {
+        fill: '#15803D', hoverFill: '#16A34A', border: '#4ADE80', fontSize: 16,
+        onClick: startNewRun
+      });
+      registerButton('end_title', x + w - 270, y + h - 84, 200, 54, 'TITLE SCREEN', {
+        fill: '#182936', hoverFill: '#243B4D', fontSize: 15,
+        onClick: () => { sfx.click(); state.mode = 'TITLE_MENU'; state.modal = null; }
+      });
+    }
+  }
+
+  function drawOverlayModal() {
+    if (!state.modal) return;
+    state.buttons = [];
+    state.hoverButtonId = null;
+    state.hoveredCard = null;
+    ctx.fillStyle = 'rgba(3, 10, 8, 0.78)';
+    ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+
+    if (state.modal === 'PAUSE') {
+      const w = 420, h = 330;
+      const x = (LOGICAL_W - w) / 2, y = (LOGICAL_H - h) / 2;
+      drawBevelPanel(ctx, x, y, w, h, {
+        fill: '#0F1A22', border: COLORS.brassBright, lip: 6, r: 12
+      });
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.font = '900 26px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = COLORS.textMain;
+      ctx.fillText('PAUSED', x + w / 2, y + 28);
+
+      registerButton('pause_resume', x + 60, y + 88, w - 120, 48, 'RESUME RUN', {
+        fill: '#15803D', hoverFill: '#16A34A', border: '#4ADE80', fontSize: 16,
+        onClick: () => { sfx.click(); state.modal = null; }
+      });
+      registerButton('pause_restart', x + 60, y + 150, w - 120, 48, 'RESTART RUN', {
+        fill: '#B45309', hoverFill: '#D97706', border: '#FCD34D', fontSize: 15,
+        onClick: startNewRun
+      });
+      registerButton('pause_title', x + 60, y + 212, w - 120, 48, 'EXIT TO TITLE', {
+        fill: '#1A2B38', hoverFill: '#253D4F', fontSize: 15,
+        onClick: () => { sfx.click(); state.modal = null; state.mode = 'TITLE_MENU'; }
+      });
+      return;
+    }
+
+    if (state.modal === 'GUIDE') {
+      const w = 820, h = 580;
+      const x = (LOGICAL_W - w) / 2, y = (LOGICAL_H - h) / 2;
+      drawBevelPanel(ctx, x, y, w, h, {
+        fill: '#0F1A22', border: COLORS.brassBright, lip: 6, r: 12
+      });
+
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.font = '900 24px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = COLORS.brassBright;
+      ctx.fillText('SCORING HANDS & EDITIONS', x + 32, y + 24);
+
+      registerButton('guide_close', x + w - 124, y + 20, 92, 36, 'CLOSE', {
+        fill: '#1A2B38', hoverFill: '#284154', fontSize: 13,
+        onClick: () => { sfx.click(); state.modal = null; }
+      });
+
+      // Left column: 3-Dice Scoring Hands
+      ctx.font = '800 13px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.fillStyle = COLORS.textMuted;
+      ctx.fillText('3-DICE HANDS (Each scored die adds its pips to Chips)', x + 32, y + 72);
+
+      let hy = y + 100;
+      for (const hid of HAND_ORDER.slice().reverse()) {
+        const hd = HANDS[hid];
+        drawBevelPanel(ctx, x + 32, hy, 420, 56, {
+          fill: '#14232E', border: COLORS.railBorder, lip: 2, r: 6
+        });
+        ctx.textAlign = 'left';
+        ctx.font = '800 15px ui-sans-serif, system-ui, sans-serif';
+        ctx.fillStyle = COLORS.textMain;
+        ctx.fillText(hd.name, x + 46, hy + 10);
+        ctx.font = '600 12px ui-sans-serif, system-ui, sans-serif';
+        ctx.fillStyle = COLORS.textMuted;
+        ctx.fillText(hd.desc, x + 46, hy + 31);
+
+        ctx.textAlign = 'right';
+        ctx.font = '800 15px ui-monospace, SFMono-Regular, Menlo, monospace';
+        ctx.fillStyle = COLORS.chipsLight;
+        ctx.fillText(`${hd.chips}`, x + 378, hy + 20);
+        ctx.fillStyle = COLORS.textMuted;
+        ctx.fillText('×', x + 396, hy + 20);
+        ctx.fillStyle = COLORS.multLight;
+        ctx.fillText(`${hd.mult}`, x + 436, hy + 20);
+        hy += 66;
+      }
+
+      // Right column: Card Editions + Economy
+      const rx = x + 480;
+      ctx.textAlign = 'left';
+      ctx.font = '800 13px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.fillStyle = COLORS.textMuted;
+      ctx.fillText('CARD EDITIONS (Rolled in Shop)', rx, y + 72);
+
+      const edList = [
+        ['Standard (80%)', 'Normal card behavior', '#CBD5E1'],
+        ['Foil (8%)', '+50 Chips when triggered', '#60A5FA'],
+        ['Holographic (7%)', '+12 Mult when triggered', '#F472B6'],
+        ['Polychrome (3%)', 'x1.5 Mult when triggered', '#C084FC'],
+        ['Negative (2%)', '+1 Max Card Slot (0 space)', '#38BDF8']
+      ];
+      let ey = y + 102;
+      for (const [name, txt, col] of edList) {
+        ctx.font = '800 14px ui-sans-serif, system-ui, sans-serif';
+        ctx.fillStyle = col;
+        ctx.fillText(name, rx, ey);
+        ctx.font = '600 12.5px ui-sans-serif, system-ui, sans-serif';
+        ctx.fillStyle = '#D1E0E8';
+        ctx.fillText(txt, rx, ey + 19);
+        ey += 48;
+      }
+
+      // Pro Tips box
+      drawBevelPanel(ctx, rx, ey + 10, 308, 134, {
+        fill: '#13211C', border: '#275948', lip: 2, r: 7
+      });
+      ctx.font = '800 12.5px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.fillStyle = COLORS.brassBright;
+      ctx.fillText('STRATEGY TIPS', rx + 14, ey + 24);
+      ctx.font = '600 12px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = '#CFE3DA';
+      const tips = [
+        '• Place +Mult cards LEFT of xMult cards.',
+        '• Keep $25 banked for max +$5 Interest.',
+        '• Reroll keeps selected dice locked.',
+        '• Every 3rd stage has a Boss modifier.'
+      ];
+      tips.forEach((t, i) => ctx.fillText(t, rx + 14, ey + 48 + i * 21));
+
+      // Footer shortcut line
+      ctx.textAlign = 'center';
+      ctx.font = '600 12px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.fillStyle = COLORS.textMuted;
+      ctx.fillText('Shortcuts: Keys 1–5 Toggle Dice · Space Play · R Reroll · C Clear · Esc Close', x + w / 2, y + h - 32);
+    }
+  }
+
+  function drawParticlesAndPopups() {
+    for (const p of state.particles) {
+      const a = 1 - p.life / p.maxLife;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.globalAlpha = clamp(a, 0, 1);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+      ctx.restore();
+    }
+
+    for (const pop of state.popups) {
+      const t = pop.life / pop.maxLife;
+      const alpha = t < 0.72 ? 1 : 1 - (t - 0.72) / 0.28;
+      ctx.save();
+      ctx.translate(pop.x, pop.y);
+      ctx.scale(pop.scale, pop.scale);
+      ctx.globalAlpha = clamp(alpha, 0, 1);
+      ctx.font = `900 ${pop.size}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = 'rgba(5, 11, 14, 0.92)';
+      ctx.strokeText(pop.text, 0, 0);
+      ctx.fillStyle = pop.color;
+      ctx.fillText(pop.text, 0, 0);
+      ctx.restore();
+    }
+  }
+
+  function drawCRTOverlay() {
+    if (!state.crtEnabled) return;
+    ctx.save();
+    // Crisp subtle horizontal scanlines
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.14)';
+    for (let y = 0; y < state.vh; y += 3) {
+      ctx.fillRect(0, y, state.vw, 1);
+    }
+    // Subtle corner CRT vignette & phosphor bloom
+    const cx = state.vw / 2, cy = state.vh / 2;
+    const rad = ctx.createRadialGradient(cx, cy, Math.min(state.vw, state.vh) * 0.36, cx, cy, Math.hypot(cx, cy));
+    rad.addColorStop(0, 'rgba(60, 255, 180, 0.025)');
+    rad.addColorStop(0.75, 'rgba(0, 0, 0, 0.04)');
+    rad.addColorStop(1, 'rgba(0, 0, 0, 0.42)');
+    ctx.fillStyle = rad;
+    ctx.fillRect(0, 0, state.vw, state.vh);
+    ctx.restore();
+  }
+
+  // =========================================================================
+  // 10. SIMULATION UPDATE LOOP (CLAMPED DELTA TIME <= 0.05s)
+  // =========================================================================
+  function update(dt) {
+    state.time += dt;
+
+    if (state.noticeTimer > 0) state.noticeTimer = Math.max(0, state.noticeTimer - dt);
+    if (state.shakeMag > 0.1) state.shakeMag *= Math.pow(0.0015, dt);
+    else state.shakeMag = 0;
+    if (state.hitFlash > 0.01) state.hitFlash = Math.max(0, state.hitFlash - dt * 1.8);
+
+    // Animated stage score counter tick-up
+    if (state.displayScore < state.stageScore) {
+      const diff = state.stageScore - state.displayScore;
+      const step = Math.max(12, diff * Math.min(1, dt * 11));
+      state.displayScore = Math.min(state.stageScore, state.displayScore + step);
+      state.scoreTickAccum += dt;
+      if (state.scoreTickAccum >= 0.045) {
+        state.scoreTickAccum = 0;
+        sfx.scoreTick();
+      }
+    } else if (state.displayScore > state.stageScore) {
+      state.displayScore = state.stageScore;
+    }
+
+    // Dice bounce & tumble physics
+    for (const d of state.dice) {
+      if (d.tumbleTimer > 0) {
+        d.tumbleTimer = Math.max(0, d.tumbleTimer - dt);
+        d.vy += 1850 * dt;
+        d.y += d.vy * dt;
+        d.angle += d.vAngle * dt;
+        if (d.y >= d.targetY) {
+          d.y = d.targetY;
+          d.vy = -Math.abs(d.vy) * 0.42;
+          d.vAngle *= 0.6;
+        }
+        if (d.tumbleTimer === 0) {
+          d.y = d.targetY;
+          d.vy = 0;
+          d.angle = 0;
+          d.vAngle = 0;
+        }
+      } else {
+        d.y = lerp(d.y, d.targetY, Math.min(1, dt * 16));
+        d.angle = lerp(d.angle, 0, Math.min(1, dt * 16));
+      }
+      d.scale = lerp(d.scale, 1, Math.min(1, dt * 14));
+      d.hop = Math.max(0, d.hop - dt * 3.4);
+      d.flash = Math.max(0, d.flash - dt * 3.2);
+    }
+
+    // Smooth card movement & bounce decay
+    for (const c of state.activeCards) {
+      if (!(state.drag && state.drag.active && state.drag.card === c)) {
+        c.x = lerp(c.x, c.targetX, Math.min(1, dt * 15));
+        c.y = lerp(c.y, c.targetY, Math.min(1, dt * 15));
+      }
+      c.bounce = Math.max(0, c.bounce - dt * 3.8);
+      c.flash = Math.max(0, c.flash - dt * 2.8);
+    }
+
+    // Scoring cascade scheduler
+    if (state.mode === 'SCORING' && !state.modal) {
+      state.scoringTimer -= dt;
+      if (state.scoringTimer <= 0) {
+        if (state.scoringQueue.length > 0) {
+          const nextStep = state.scoringQueue.shift();
+          executeScoringStep(nextStep);
+          state.scoringTimer = nextStep.duration;
+        } else {
+          finishScoringPhase();
+        }
+      }
+    }
+
+    // Cash-out progressive row reveal
+    if (state.mode === 'CASH_OUT') {
+      state.cashOutReveal = Math.min(1.2, state.cashOutReveal + dt * 1.45);
+    }
+
+    // Particles & popups
+    for (let i = state.particles.length - 1; i >= 0; i--) {
+      const p = state.particles[i];
+      p.life += dt;
+      if (p.life >= p.maxLife) {
+        state.particles.splice(i, 1);
+      } else {
+        p.vy += 420 * dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.rot += p.vrot * dt;
+      }
+    }
+    for (let i = state.popups.length - 1; i >= 0; i--) {
+      const pop = state.popups[i];
+      pop.life += dt;
+      if (pop.life >= pop.maxLife) {
+        state.popups.splice(i, 1);
+      } else {
+        pop.y += pop.vy * dt;
+        pop.vy *= Math.pow(0.18, dt);
+        pop.scale = lerp(pop.scale, 1, Math.min(1, dt * 18));
+      }
+    }
+  }
+
+  function render() {
+    ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+    drawTableBackground();
+
+    // Reset per-frame UI interaction registries
+    state.buttons = [];
+    state.hoverButtonId = null;
+    state.hoveredCard = null;
+
+    // Apply logical coordinate scaling + decaying camera shake
+    const shakeX = state.shakeMag > 0.1 ? (Math.random() - 0.5) * 2 * state.shakeMag : 0;
+    const shakeY = state.shakeMag > 0.1 ? (Math.random() - 0.5) * 2 * state.shakeMag : 0;
+
+    ctx.save();
+    ctx.translate(state.ox + shakeX * state.scale, state.oy + shakeY * state.scale);
+    ctx.scale(state.scale, state.scale);
+
+    if (state.mode === 'TITLE_MENU') {
+      drawTitleScreen();
+    } else {
+      drawLeftHUD();
+      drawModifierCardTray();
+      if (state.mode === 'PLAYING' || state.mode === 'SCORING') {
+        drawPlayArena();
+      } else if (state.mode === 'CASH_OUT') {
+        drawCashOutPanel();
+      } else if (state.mode === 'SHOP') {
+        drawShopArena();
+      } else if (state.mode === 'VICTORY') {
+        drawEndModal(true);
+      } else if (state.mode === 'GAME_OVER') {
+        drawEndModal(false);
+      }
+    }
+
+    drawParticlesAndPopups();
+    drawCardTooltip();
+    drawOverlayModal();
+
+    // Hit flash on big blind clears
+    if (state.hitFlash > 0.01) {
+      ctx.fillStyle = `rgba(253, 224, 71, ${state.hitFlash * 0.22})`;
+      ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+    }
+
+    ctx.restore();
+    drawCRTOverlay();
+
+    // Cursor polish
+    let cursor = 'default';
+    if (state.drag && state.drag.active) cursor = 'grabbing';
+    else if (state.hoverButtonId) cursor = 'pointer';
+    else if (state.hoveredCard) cursor = state.hoveredCard.zone === 'active' ? 'grab' : 'pointer';
+    else if (state.mode === 'PLAYING' && !state.modal && findHoveredDieIndex(state.mouseX, state.mouseY) !== -1) cursor = 'pointer';
+    canvas.style.cursor = cursor;
+  }
+
+  // =========================================================================
+  // 11. INPUT HANDLING (POINTER, DRAG-AND-DROP, KEYBOARD)
+  // =========================================================================
+  function resize() {
+    state.vw = window.innerWidth;
+    state.vh = window.innerHeight;
+    state.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(state.vw * state.dpr);
+    canvas.height = Math.round(state.vh * state.dpr);
+    state.scale = Math.min(state.vw / LOGICAL_W, state.vh / LOGICAL_H);
+    state.ox = (state.vw - LOGICAL_W * state.scale) / 2;
+    state.oy = (state.vh - LOGICAL_H * state.scale) / 2;
+  }
+
+  function clientToLogical(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (clientX - rect.left - state.ox) / state.scale,
+      y: (clientY - rect.top - state.oy) / state.scale
+    };
+  }
+
+  function findHoveredDieIndex(lx, ly) {
+    for (let i = 0; i < state.dice.length; i++) {
+      const d = state.dice[i];
+      const liftY = d.selected ? -34 : 0;
+      const cx = d.x;
+      const cy = d.y + liftY;
+      if (Math.abs(lx - cx) <= 58 && Math.abs(ly - cy) <= 58) return i;
+    }
+    return -1;
+  }
+
+  function findActiveCardIndex(lx, ly) {
+    const layout = getActiveCardLayout();
+    for (let i = 0; i < state.activeCards.length; i++) {
+      const c = state.activeCards[i];
+      if (
+        lx >= c.x - layout.cardW / 2 && lx <= c.x + layout.cardW / 2 &&
+        ly >= c.y - layout.cardH / 2 && ly <= c.y + layout.cardH / 2
+      ) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    sfx.unlock();
+    const { x, y } = clientToLogical(e.clientX, e.clientY);
+    state.mouseX = x;
+    state.mouseY = y;
+
+    // 1. Check UI buttons (reverse order so modals on top catch first)
+    for (let i = state.buttons.length - 1; i >= 0; i--) {
+      const b = state.buttons[i];
+      if (!b.disabled && hitTest(x, y, b.rect)) {
+        b.onClick();
+        return;
+      }
+    }
+
+    if (state.modal) return;
+
+    // 2. Check active modifier cards for click-focus OR drag-and-drop reorder
+    if (state.mode === 'PLAYING' || state.mode === 'SHOP') {
+      const cIdx = findActiveCardIndex(x, y);
+      if (cIdx !== -1) {
+        const card = state.activeCards[cIdx];
+        state.drag = {
+          card,
+          fromIdx: cIdx,
+          startX: x,
+          startY: y,
+          curX: x,
+          curY: y,
+          active: false
+        };
+        return;
+      }
+    }
+
+    // Clicking empty space dismisses card action strip
+    state.focusedActiveUid = null;
+
+    // 3. Check dice click in PLAYING state
+    if (state.mode === 'PLAYING') {
+      const dIdx = findHoveredDieIndex(x, y);
+      if (dIdx !== -1) {
+        toggleDieSelection(dIdx);
+        return;
+      }
+    }
+  });
+
+  window.addEventListener('pointermove', (e) => {
+    const { x, y } = clientToLogical(e.clientX, e.clientY);
+    state.mouseX = x;
+    state.mouseY = y;
+
+    if (state.drag) {
+      state.drag.curX = x;
+      state.drag.curY = y;
+      if (!state.drag.active && Math.hypot(x - state.drag.startX, y - state.drag.startY) > 10) {
+        state.drag.active = true;
+        state.focusedActiveUid = null;
+      }
+      if (state.drag.active) {
+        const curIdx = state.activeCards.indexOf(state.drag.card);
+        if (curIdx !== -1) {
+          const layout = getActiveCardLayout();
+          const relX = x - layout.startX;
+          const slotStride = layout.cardW + layout.gap;
+          const desiredIdx = clamp(Math.floor(relX / slotStride), 0, state.activeCards.length - 1);
+          if (desiredIdx !== curIdx) {
+            state.activeCards.splice(curIdx, 1);
+            state.activeCards.splice(desiredIdx, 0, state.drag.card);
+            sfx.cardSnap();
+          }
+        }
+      }
+    }
+  });
+
+  window.addEventListener('pointerup', () => {
+    if (state.drag) {
+      if (!state.drag.active) {
+        // Short click toggles precision arrow & sell controls
+        const uid = state.drag.card.uid;
+        state.focusedActiveUid = state.focusedActiveUid === uid ? null : uid;
+        sfx.click();
+      } else {
+        state.drag.card.bounce = 0.5;
+        sfx.cardSnap();
+      }
+      state.drag = null;
+    }
+  });
+
+  window.addEventListener('blur', () => {
+    state.drag = null;
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.repeat) return;
+    sfx.unlock();
+
+    if (e.key === 'Escape') {
+      if (state.modal) {
+        sfx.click();
+        state.modal = null;
+      } else if (state.mode === 'PLAYING' || state.mode === 'SHOP') {
+        sfx.click();
+        state.modal = 'PAUSE';
+      }
+      return;
+    }
+
+    if (state.modal) return;
+
+    if (state.mode === 'TITLE_MENU') {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        startNewRun();
+      }
+      return;
+    }
+
+    if (state.mode === 'PLAYING') {
+      if (e.key >= '1' && e.key <= '5') {
+        toggleDieSelection(Number(e.key) - 1);
+      } else if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        playSelectedHand();
+      } else if (e.key === 'r' || e.key === 'R') {
+        triggerReroll();
+      } else if (e.key === 'c' || e.key === 'C') {
+        clearSelectedDice();
+      }
+      return;
+    }
+
+    if (state.mode === 'CASH_OUT') {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        claimCashOut();
+      }
+      return;
+    }
+
+    if (state.mode === 'SHOP') {
+      if (e.key === 'r' || e.key === 'R') {
+        rerollShop();
+      } else if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        startStage(state.stage + 1);
+      }
+    }
+  });
+
+  window.addEventListener('resize', resize);
+
+  // =========================================================================
+  // 12. BOOTSTRAP & MAIN LOOP
+  // =========================================================================
+  resize();
+  initTitleBackdrop();
+
+  let lastTime = performance.now();
+  function frame(now) {
+    const rawDt = (now - lastTime) / 1000;
+    lastTime = now;
+    const dt = Math.min(Math.max(rawDt, 0), 0.05);
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
