@@ -314,18 +314,18 @@ export function getSuitColor(suit, isNegative) {
 }
 
 export function drawTableBackground(ctx, state) {
-  // Full viewport emerald casino felt with radial vignette
+  // Full viewport midnight-velvet art-deco parlor table with radial vignette
   const cx = state.vw / 2;
   const cy = state.vh / 2;
   const maxR = Math.hypot(cx, cy) * 1.05;
-  const rad = ctx.createRadialGradient(cx, cy * 0.92, 40, cx, cy, maxR);
+  const rad = ctx.createRadialGradient(cx, cy * 0.88, 30, cx, cy, maxR);
   rad.addColorStop(0, COLORS.feltCenter);
   rad.addColorStop(0.55, COLORS.feltMid);
   rad.addColorStop(1, COLORS.feltEdge);
   ctx.fillStyle = rad;
   ctx.fillRect(0, 0, state.vw, state.vh);
 
-  // Subtle woven felt texture
+  // Subtle woven velvet texture
   const patCanvas = getFeltPatternCanvas();
   if (patCanvas) {
     const pat = ctx.createPattern(patCanvas, 'repeat');
@@ -335,13 +335,22 @@ export function drawTableBackground(ctx, state) {
     }
   }
 
-  // Subtle decorative casino inlay arc
+  // Art-Deco geometric diamond & brass filigree table inlay
   ctx.save();
-  ctx.strokeStyle = 'rgba(217, 164, 65, 0.07)';
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(212, 163, 89, 0.08)';
+  ctx.lineWidth = 1.5;
+  const rx = state.vw * 0.42;
+  const ry = state.vh * 0.36;
   ctx.beginPath();
-  ctx.ellipse(cx, cy + state.vh * 0.08, state.vw * 0.43, state.vh * 0.39, 0, 0, Math.PI * 2);
+  ctx.moveTo(cx, cy - ry);
+  ctx.lineTo(cx + rx, cy);
+  ctx.lineTo(cx, cy + ry);
+  ctx.lineTo(cx - rx, cy);
+  ctx.closePath();
   ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(212, 163, 89, 0.05)';
+  ctx.strokeRect(cx - state.vw * 0.36, cy - state.vh * 0.30, state.vw * 0.72, state.vh * 0.60);
   ctx.restore();
 }
 

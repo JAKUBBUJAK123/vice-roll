@@ -5,10 +5,10 @@ export const DICE_SIDES = 6;
 export const MAX_SELECT_DICE = 3;
 
 export const DICE_LAYOUT = {
-  startX: 468,
-  spacing: 164,
-  baseY: 472,
-  size: 108,
+  startX: 336,
+  spacing: 152,
+  baseY: 368,
+  size: 104,
   titleSize: 88
 };
 

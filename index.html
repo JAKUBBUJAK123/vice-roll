@@ -149,9 +149,9 @@ import {
   }
 
   function getStageLabel(stage) {
-    if (stage % 3 === 0) return 'BOSS BLIND';
-    if (stage % 3 === 2) return 'BIG BLIND';
-    return 'SMALL BLIND';
+    if (stage % 3 === 0) return 'BOSS CURSE';
+    if (stage % 3 === 2) return 'HIGH STAKES';
+    return 'OPENING TABLE';
   }
 
   function getStageBaseReward(stage) {
@@ -682,7 +682,7 @@ import {
       state.mult = step.hand.mult;
       state.scoringBanner = step.hand.name + '  (' + step.hand.chips + ' × ' + step.hand.mult + ')';
       sfx.scoreStep(0, 'chips');
-      spawnPopup(168, 355, step.hand.name + '!', COLORS.brassBright, 20);
+      spawnPopup(640, 140, step.hand.name + '!', COLORS.brassBright, 20);
       return;
     }
 
@@ -795,17 +795,17 @@ import {
       const beatTarget = state.stageScore >= state.targetScore;
       const hugeBlowout = handTotal >= state.targetScore;
 
-      state.scoringBanner = fmtNum(state.chips) + ' × ' + fmtMult(state.mult) + ' = ' + fmtNum(handTotal) + (beatTarget ? '  —  BLIND CLEARED!' : '');
-      spawnPopup(796, 390, '+' + fmtNum(handTotal), beatTarget ? COLORS.goldLight : '#FFFFFF', hugeBlowout ? 44 : 34);
+      state.scoringBanner = fmtNum(state.chips) + ' × ' + fmtMult(state.mult) + ' = ' + fmtNum(handTotal) + (beatTarget ? '  —  CHAPTER CLEARED!' : '');
+      spawnPopup(640, 310, '+' + fmtNum(handTotal), beatTarget ? COLORS.goldLight : '#FFFFFF', hugeBlowout ? 44 : 34);
 
       if (beatTarget) {
         addShake(hugeBlowout ? 18 : 11);
         state.hitFlash = hugeBlowout ? 0.55 : 0.3;
-        spawnParticles(796, 420, hugeBlowout ? 75 : 45, [COLORS.goldLight, COLORS.emerald, COLORS.chipsLight, '#FFFFFF'], 120, 420);
-        spawnParticles(168, 224, 30, [COLORS.goldLight, COLORS.emerald], 80, 260);
+        spawnParticles(640, 340, hugeBlowout ? 75 : 45, [COLORS.goldLight, COLORS.emerald, COLORS.chipsLight, '#FFFFFF'], 120, 420);
+        spawnParticles(480, 60, 30, [COLORS.goldLight, COLORS.emerald], 80, 260);
       } else {
         addShake(4);
-        spawnParticles(796, 420, 18, [COLORS.chipsLight, COLORS.multLight, '#FFFFFF'], 80, 200);
+        spawnParticles(640, 340, 18, [COLORS.chipsLight, COLORS.multLight, '#FFFFFF'], 80, 200);
       }
       sfx.totalSlam(beatTarget);
 
@@ -867,7 +867,7 @@ import {
       state.money += state.cashOutData.total;
       state.totalMoneyEarned += state.cashOutData.total;
       sfx.buyCard();
-      spawnPopup(168, 540, '+$' + state.cashOutData.total, COLORS.goldLight, 26);
+      spawnPopup(985, 65, '+$' + state.cashOutData.total, COLORS.goldLight, 26);
     }
 
     if (state.cashOutData.isRunVictory) {
@@ -913,7 +913,7 @@ import {
       return;
     }
     state.money -= SHOP_REROLL_COST;
-    spawnPopup(168, 540, '-$' + SHOP_REROLL_COST, COLORS.multLight, 22);
+    spawnPopup(985, 65, '-$' + SHOP_REROLL_COST, COLORS.multLight, 22);
     rollShopInventory();
   }
 
@@ -940,8 +940,8 @@ import {
     card.pulseColor = EDITIONS[card.edition].color;
     state.activeCards.push(card);
     sfx.buyCard();
-    spawnPopup(168, 540, '-$' + card.price, COLORS.goldLight, 22);
-    spawnParticles(796, 150, 20, [COLORS.goldLight, EDITIONS[card.edition].color, '#FFFFFF'], 70, 220);
+    spawnPopup(985, 65, '-$' + card.price, COLORS.goldLight, 22);
+    spawnParticles(640, 640, 20, [COLORS.goldLight, EDITIONS[card.edition].color, '#FFFFFF'], 70, 220);
   }
 
   function sellActiveCard(idx) {

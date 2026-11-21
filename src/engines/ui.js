@@ -27,26 +27,28 @@ export function hitTest(px, py, rect) {
   return rect && px >= rect.x && px <= rect.x + rect.w && py >= rect.y && py <= rect.y + rect.h;
 }
 
+// Bottom Art-Deco Arcana Card Dock Layout (Centered across the bottom of the table)
 export function getActiveCardLayout(state) {
-  const trayX = 356;
-  const trayW = 880;
+  const trayX = 160;
+  const trayW = 960;
   const count = state.activeCards.length;
-  const cardW = count > 6 ? Math.max(92, Math.floor((trayW - (count - 1) * 10) / count)) : 128;
+  const cardW = count > 6 ? Math.max(88, Math.floor((trayW - (count - 1) * 10) / count)) : 114;
   const cardH = Math.round(cardW * 1.36);
   const gap = count > 6 ? 10 : 18;
   const totalW = count > 0 ? count * cardW + (count - 1) * gap : 0;
   const startX = trayX + (trayW - totalW) / 2;
-  const centerY = 148;
+  const centerY = 656;
   return { cardW, cardH, gap, startX, centerY, trayX, trayW };
 }
 
+// Centered Shop Showcase Layout (Middle Arena above the bottom Card Dock)
 export function getShopCardRects() {
-  const cardW = 146;
-  const cardH = 198;
-  const gap = 58;
+  const cardW = 132;
+  const cardH = 180;
+  const gap = 52;
   const totalW = 3 * cardW + 2 * gap;
-  const startX = 336 + (920 - totalW) / 2;
-  const topY = 368;
+  const startX = (1280 - totalW) / 2;
+  const topY = 230;
   return [0, 1, 2].map(i => ({
     x: startX + i * (cardW + gap),
     y: topY,
@@ -63,7 +65,7 @@ export function registerButton(ctx, state, id, x, y, w, h, label, opts = {}) {
 
   const {
     fill = COLORS.railPanel,
-    hoverFill = '#1D303E',
+    hoverFill = '#292042',
     border = COLORS.railBorderBright,
     textColor = COLORS.textMain,
     fontSize = 15,
@@ -79,7 +81,7 @@ export function registerButton(ctx, state, id, x, y, w, h, label, opts = {}) {
     fill: hovered ? hoverFill : fill,
     border: hovered ? COLORS.brassBright : border,
     lip: disabled ? 2 : lip,
-    r: 7,
+    r: 8,
     glow: hovered && opts.glow ? opts.glow : null
   });
 
@@ -90,7 +92,7 @@ export function registerButton(ctx, state, id, x, y, w, h, label, opts = {}) {
   if (sublabel) {
     ctx.fillText(label, x + w / 2, y + pressY + h / 2 - 8);
     ctx.font = '600 11px ui-monospace, SFMono-Regular, Menlo, monospace';
-    ctx.fillStyle = 'rgba(243,247,245,0.78)';
+    ctx.fillStyle = 'rgba(248,245,255,0.75)';
     ctx.fillText(sublabel, x + w / 2, y + pressY + h / 2 + 11);
   } else {
     ctx.fillText(label, x + w / 2, y + pressY + h / 2 + 0.5);
@@ -98,223 +100,272 @@ export function registerButton(ctx, state, id, x, y, w, h, label, opts = {}) {
   ctx.restore();
 }
 
+// Helper to draw pip dots for Throws & Rerolls gauges
+function drawPipDots(ctx, cx, y, current, max, activeColor) {
+  const dotR = 5.5;
+  const gap = 16;
+  const totalCount = Math.max(max, current);
+  const startX = cx - ((totalCount - 1) * gap) / 2;
+  for (let i = 0; i < totalCount; i++) {
+    const filled = i < current;
+    ctx.beginPath();
+    ctx.arc(startX + i * gap, y, dotR, 0, Math.PI * 2);
+    ctx.fillStyle = filled ? activeColor : 'rgba(255,255,255,0.12)';
+    ctx.fill();
+    ctx.strokeStyle = filled ? '#FFFFFF' : COLORS.railBorder;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+}
+
+// ============================================================================
+// TOP COMMAND RIBBON & CENTER FORMULA DIAL (Replaces Balatro's Left Sidebar!)
+// ============================================================================
 export function drawLeftHUD(ctx, state, uiCtx) {
   const { getStageLabel, isDieDebuffedByBoss, MAX_INTEREST } = uiCtx;
-  const x = 24, y = 24, w = 288, h = 712;
-  drawBevelPanel(ctx, x, y, w, h, {
+
+  // 1. Top Command Ribbon across the top of the screen
+  const rx = 24, ry = 14, rw = 1232, rh = 86;
+  drawBevelPanel(ctx, rx, ry, rw, rh, {
     fill: COLORS.railBg,
     border: COLORS.railBorder,
-    lip: 5,
+    lip: 4,
     r: 10
   });
 
-  // 1. Stage & Blind Plate
+  // Left Section: Chapter / Stage Badge & Boss curse
   const isBoss = Boolean(state.activeBoss);
   const blindLabel = getStageLabel(state.stage);
-  const stageStr = state.endless ? `ENDLESS ${state.stage}` : `STAGE ${state.stage} / 9`;
+  const stageStr = state.endless ? `ENDLESS ${state.stage}` : `CHAPTER ${state.stage} / 9`;
 
-  drawBevelPanel(ctx, x + 14, y + 14, w - 28, isBoss ? 140 : 108, {
-    fill: isBoss ? '#221218' : '#14232E',
-    border: isBoss ? COLORS.multRed : COLORS.railBorderBright,
-    lip: 3,
-    r: 7
+  drawBevelPanel(ctx, rx + 12, ry + 10, 240, rh - 20, {
+    fill: isBoss ? '#2A1020' : COLORS.railPanel,
+    border: isBoss ? COLORS.multRed : COLORS.brass,
+    lip: 2,
+    r: 8
   });
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = '800 12px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.font = '800 11px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = isBoss ? COLORS.multLight : COLORS.brassBright;
-  ctx.fillText(blindLabel, x + 28, y + 26);
-
-  ctx.textAlign = 'right';
-  ctx.fillStyle = COLORS.textMuted;
-  ctx.fillText(stageStr, x + w - 28, y + 26);
-
-  ctx.textAlign = 'center';
-  ctx.font = '700 11px ui-sans-serif, system-ui, sans-serif';
-  ctx.fillStyle = COLORS.textMuted;
-  ctx.fillText('TARGET SCORE', x + w / 2, y + 52);
-
-  ctx.font = '900 32px ui-monospace, SFMono-Regular, Menlo, monospace';
-  ctx.fillStyle = COLORS.goldLight;
-  ctx.fillText(fmtNum(state.targetScore), x + w / 2, y + 70);
+  ctx.fillText(stageStr + ' · ' + blindLabel, rx + 24, ry + 18);
 
   if (isBoss) {
-    ctx.fillStyle = 'rgba(220, 38, 38, 0.24)';
-    ctx.fillRect(x + 22, y + 109, w - 44, 38);
-    ctx.font = '800 10.5px ui-monospace, SFMono-Regular, Menlo, monospace';
-    ctx.fillStyle = '#FCA5A5';
-    ctx.fillText(state.activeBoss.name.toUpperCase(), x + w / 2, y + 114);
-    ctx.font = '700 11.5px ui-sans-serif, system-ui, sans-serif';
-    ctx.fillStyle = '#FFF1F2';
-    ctx.fillText(state.activeBoss.short, x + w / 2, y + 129);
+    ctx.font = '800 13px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = '#FFE4E6';
+    ctx.fillText('☠ ' + state.activeBoss.name, rx + 24, ry + 35);
+    ctx.font = '600 11px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = '#FDA4AF';
+    ctx.fillText(state.activeBoss.short, rx + 24, ry + 53);
+  } else {
+    ctx.font = '800 15px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.textMain;
+    ctx.fillText('Velvet Parlor Table', rx + 24, ry + 36);
+    ctx.font = '600 11px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText('No active table curse', rx + 24, ry + 54);
   }
 
-  // 2. Round Score Progress Block
-  const scY = isBoss ? y + 166 : y + 136;
-  drawBevelPanel(ctx, x + 14, scY, w - 28, 94, {
-    fill: '#101B23',
+  // Center-Left Section: Wide Horizontal Score Meter & Goal
+  const mx = rx + 266, my = ry + 10, mw = 414, mh = rh - 20;
+  drawBevelPanel(ctx, mx, my, mw, mh, {
+    fill: '#140F23',
     border: state.stageScore >= state.targetScore ? COLORS.emerald : COLORS.railBorder,
-    lip: 3,
-    r: 7
+    lip: 2,
+    r: 8
   });
 
-  ctx.textAlign = 'center';
-  ctx.font = '700 11px ui-sans-serif, system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.font = '700 11px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = COLORS.textMuted;
-  ctx.fillText('STAGE SCORE', x + w / 2, scY + 12);
+  ctx.fillText('STAGE SCORE', mx + 16, my + 10);
 
-  ctx.font = '900 34px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.font = '900 24px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = state.stageScore >= state.targetScore ? '#6EE7B7' : COLORS.textMain;
-  ctx.fillText(fmtNum(state.displayScore), x + w / 2, scY + 30);
+  ctx.fillText(fmtNum(state.displayScore), mx + 16, my + 24);
 
-  // Progress bar
-  const barX = x + 28, barY = scY + 72, barW = w - 56, barH = 10;
-  ctx.fillStyle = '#091117';
+  ctx.textAlign = 'right';
+  ctx.font = '700 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = COLORS.textMuted;
+  ctx.fillText('GOAL TARGET', mx + mw - 16, my + 10);
+
+  ctx.font = '900 24px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = COLORS.goldLight;
+  ctx.fillText(fmtNum(state.targetScore), mx + mw - 16, my + 24);
+
+  // Horizontal progress bar with diamond marker
+  const barX = mx + 16, barY = my + 51, barW = mw - 32, barH = 8;
+  ctx.fillStyle = '#090612';
   ctx.fillRect(barX, barY, barW, barH);
   const pct = clamp(state.displayScore / Math.max(1, state.targetScore), 0, 1);
   if (pct > 0) {
-    ctx.fillStyle = pct >= 1 ? COLORS.emerald : COLORS.brass;
+    const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+    grad.addColorStop(0, COLORS.chipsLight);
+    grad.addColorStop(1, pct >= 1 ? COLORS.emerald : COLORS.brassBright);
+    ctx.fillStyle = grad;
     ctx.fillRect(barX, barY, barW * pct, barH);
   }
-  ctx.strokeStyle = COLORS.railBorder;
+  ctx.strokeStyle = COLORS.railBorderBright;
   ctx.lineWidth = 1;
   ctx.strokeRect(barX + 0.5, barY + 0.5, barW - 1, barH - 1);
 
-  // 3. Live Hand Preview & Chips x Mult
-  const cmY = scY + 106;
-  drawBevelPanel(ctx, x + 14, cmY, w - 28, 128, {
-    fill: '#111D26',
-    border: COLORS.railBorder,
-    lip: 3,
-    r: 7
+  // Center-Right Section: Throws, Shakes & Treasury Bankroll Badges
+  const gx = mx + mw + 12;
+  // Throws gauge
+  drawBevelPanel(ctx, gx, my, 102, mh, {
+    fill: COLORS.railPanel, border: COLORS.railBorder, lip: 2, r: 8
+  });
+  ctx.textAlign = 'center';
+  ctx.font = '700 10px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = COLORS.textMuted;
+  ctx.fillText('HANDS', gx + 51, my + 9);
+  ctx.font = '900 20px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = state.handsLeft <= 1 ? COLORS.multLight : COLORS.chipsLight;
+  ctx.fillText(String(state.handsLeft), gx + 51, my + 23);
+  drawPipDots(ctx, gx + 51, my + 52, state.handsLeft, 4, COLORS.chipsLight);
+
+  // Rerolls gauge
+  const rx2 = gx + 110;
+  drawBevelPanel(ctx, rx2, my, 102, mh, {
+    fill: COLORS.railPanel, border: COLORS.railBorder, lip: 2, r: 8
+  });
+  ctx.font = '700 10px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = COLORS.textMuted;
+  ctx.fillText('REROLLS', rx2 + 51, my + 9);
+  ctx.font = '900 20px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = state.rerollsLeft === 0 ? COLORS.textDim : COLORS.brassBright;
+  ctx.fillText(String(state.rerollsLeft), rx2 + 51, my + 23);
+  drawPipDots(ctx, rx2 + 51, my + 52, state.rerollsLeft, 3, COLORS.brassBright);
+
+  // Treasury / Bankroll
+  const bx = rx2 + 110;
+  const nextInterest = Math.min(MAX_INTEREST, Math.floor(state.money / 5));
+  drawBevelPanel(ctx, bx, my, 134, mh, {
+    fill: '#1E1814', border: '#6E5623', lip: 2, r: 8
+  });
+  ctx.textAlign = 'center';
+  ctx.font = '700 10px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = COLORS.textMuted;
+  ctx.fillText('TREASURY', bx + 67, my + 9);
+  ctx.font = '900 22px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = COLORS.goldLight;
+  ctx.fillText('$' + state.money, bx + 67, my + 23);
+  ctx.font = '700 10px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = nextInterest > 0 ? '#6EE7B7' : COLORS.textDim;
+  ctx.fillText(`+$${nextInterest} interest`, bx + 67, my + 48);
+
+  // Far-Right Section: Compact Utility Toolbar (2x2)
+  const ux = bx + 144;
+  const uw = 82, uh = 30;
+  registerButton(ctx, state, 'hud_guide', ux, my, uw, uh, 'GUIDE', {
+    fill: COLORS.railPanel, hoverFill: '#2D224A', fontSize: 11, lip: 2,
+    onClick: () => { sfx.click(); state.modal = state.modal === 'GUIDE' ? null : 'GUIDE'; }
+  });
+  registerButton(ctx, state, 'hud_crt', ux + uw + 8, my, uw, uh, state.crtEnabled ? 'CRT: ON' : 'CRT: OFF', {
+    fill: state.crtEnabled ? '#132C28' : COLORS.railPanel,
+    hoverFill: '#1D403A',
+    border: state.crtEnabled ? COLORS.chipsLight : COLORS.railBorderBright,
+    fontSize: 11, lip: 2,
+    onClick: () => { sfx.click(); state.crtEnabled = !state.crtEnabled; }
+  });
+  registerButton(ctx, state, 'hud_sfx', ux, my + 36, uw, uh, sfx.muted ? 'MUTE' : 'AUDIO', {
+    fill: COLORS.railPanel, hoverFill: '#2D224A', fontSize: 11, lip: 2,
+    onClick: () => { sfx.muted = !sfx.muted; if (!sfx.muted) sfx.click(); }
+  });
+  registerButton(ctx, state, 'hud_pause', ux + uw + 8, my + 36, uw, uh, 'MENU', {
+    fill: COLORS.railPanel, hoverFill: '#2D224A', fontSize: 11, lip: 2,
+    onClick: () => { sfx.click(); state.modal = state.modal === 'PAUSE' ? null : 'PAUSE'; }
   });
 
-  ctx.textAlign = 'center';
-  ctx.font = '800 16px ui-sans-serif, system-ui, sans-serif';
-  ctx.fillStyle = state.liveHandName ? COLORS.textMain : COLORS.textDim;
-  ctx.fillText(state.liveHandName || 'Select 1–3 Dice', x + w / 2, cmY + 14);
-
-  // Chips box
-  const boxY = cmY + 42, boxW = 104, boxH = 54;
-  drawBevelPanel(ctx, x + 26, boxY, boxW, boxH, {
-    fill: COLORS.chipsBlue,
-    border: COLORS.chipsLight,
+  // 2. Center Score Formula Dial Bar (Directly beneath Top Ribbon)
+  const fx = 250, fy = 110, fw = 780, fh = 58;
+  drawBevelPanel(ctx, fx, fy, fw, fh, {
+    fill: 'rgba(20, 14, 34, 0.90)',
+    border: COLORS.brass,
     lip: 3,
-    r: 6
+    r: 28
   });
-  ctx.font = '900 24px ui-monospace, SFMono-Regular, Menlo, monospace';
-  ctx.fillStyle = '#FFFFFF';
-  ctx.textAlign = 'center';
+
+  // Left of Formula: Hand Combo Title & pip preview
+  ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText(fmtNum(state.chips), x + 26 + boxW / 2, boxY + boxH / 2 + 1);
+  ctx.font = '900 18px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = state.liveHandName ? COLORS.brassBright : COLORS.textDim;
+  ctx.fillText(state.liveHandName ? state.liveHandName.toUpperCase() : 'SELECT 1–3 DICE', fx + 26, fy + 21);
 
-  // X operator
-  ctx.font = '900 24px ui-sans-serif, system-ui, sans-serif';
-  ctx.fillStyle = COLORS.multLight;
-  ctx.fillText('×', x + w / 2, boxY + boxH / 2 + 1);
-
-  // Mult box
-  drawBevelPanel(ctx, x + w - 26 - boxW, boxY, boxW, boxH, {
-    fill: COLORS.multRed,
-    border: COLORS.multLight,
-    lip: 3,
-    r: 6
-  });
-  ctx.font = '900 24px ui-monospace, SFMono-Regular, Menlo, monospace';
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillText(fmtMult(state.mult), x + w - 26 - boxW / 2, boxY + boxH / 2 + 1);
-
-  // Sub-caption under Chips x Mult
-  ctx.textBaseline = 'top';
-  ctx.font = '700 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.font = '600 11px ui-monospace, SFMono-Regular, Menlo, monospace';
   if (state.mode === 'SCORING' && state.scoringHandTotal > 0) {
     ctx.fillStyle = COLORS.goldLight;
-    ctx.fillText('HAND TOTAL: ' + fmtNum(state.scoringHandTotal), x + w / 2, cmY + 106);
+    ctx.fillText('HAND PAYOUT: +' + fmtNum(state.scoringHandTotal) + ' PTS', fx + 26, fy + 41);
   } else if (state.liveHandName) {
     const sel = state.dice.filter(d => d.selected);
     const pipSum = sel.reduce((a, d) => a + (isDieDebuffedByBoss(d.value) ? 0 : d.value), 0);
     ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText(`Base + ${pipSum} pip Chips before cards`, x + w / 2, cmY + 106);
+    ctx.fillText(`+${pipSum} die pips added on roll`, fx + 26, fy + 41);
   } else {
     ctx.fillStyle = COLORS.textDim;
-    ctx.fillText('CHIPS  ×  MULT', x + w / 2, cmY + 106);
+    ctx.fillText('Click dice below to preview combo', fx + 26, fy + 41);
   }
 
-  // 4. Resources (Hands, Rerolls, Bankroll)
-  const resY = cmY + 140;
-  const halfW = (w - 38) / 2;
+  // Right of Formula: Teal Base Pill × Crimson-Flame Multiplier Pill = Projected Total
+  const pillY = fy + 10, pillW = 112, pillH = 38;
+  const basePillX = fx + 330;
 
-  // Hands
-  drawBevelPanel(ctx, x + 14, resY, halfW, 66, {
-    fill: '#13202A', border: COLORS.railBorder, lip: 3, r: 7
+  // Base Points Pill (Teal)
+  drawBevelPanel(ctx, basePillX, pillY, pillW, pillH, {
+    fill: COLORS.chipsDark,
+    border: COLORS.chipsLight,
+    lip: 2,
+    r: 18
   });
   ctx.textAlign = 'center';
-  ctx.font = '700 11px ui-sans-serif, system-ui, sans-serif';
-  ctx.fillStyle = COLORS.textMuted;
-  ctx.fillText('HANDS', x + 14 + halfW / 2, resY + 10);
-  ctx.font = '900 28px ui-monospace, SFMono-Regular, Menlo, monospace';
-  ctx.fillStyle = state.handsLeft <= 1 ? COLORS.multLight : COLORS.chipsLight;
-  ctx.fillText(String(state.handsLeft), x + 14 + halfW / 2, resY + 28);
+  ctx.textBaseline = 'middle';
+  ctx.font = '800 10px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = COLORS.chipsLight;
+  ctx.fillText('BASE', basePillX + 26, pillY + pillH / 2);
+  ctx.font = '900 20px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText(fmtNum(state.chips), basePillX + 74, pillY + pillH / 2 + 1);
 
-  // Rerolls
-  drawBevelPanel(ctx, x + 24 + halfW, resY, halfW, 66, {
-    fill: '#13202A', border: COLORS.railBorder, lip: 3, r: 7
-  });
-  ctx.font = '700 11px ui-sans-serif, system-ui, sans-serif';
-  ctx.fillStyle = COLORS.textMuted;
-  ctx.fillText('REROLLS', x + 24 + halfW * 1.5, resY + 10);
-  ctx.font = '900 28px ui-monospace, SFMono-Regular, Menlo, monospace';
-  ctx.fillStyle = state.rerollsLeft === 0 ? COLORS.textDim : COLORS.brassBright;
-  ctx.fillText(String(state.rerollsLeft), x + 24 + halfW * 1.5, resY + 28);
+  // Multiply Symbol
+  ctx.font = '900 20px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = COLORS.brassBright;
+  ctx.fillText('×', basePillX + pillW + 18, pillY + pillH / 2);
 
-  // Bankroll + Interest indicator
-  const monY = resY + 76;
-  drawBevelPanel(ctx, x + 14, monY, w - 28, 66, {
-    fill: '#1A1C14', border: '#66521E', lip: 3, r: 7
+  // Mult Pill (Rose/Crimson)
+  const multPillX = basePillX + pillW + 36;
+  drawBevelPanel(ctx, multPillX, pillY, pillW, pillH, {
+    fill: COLORS.multDark,
+    border: COLORS.multLight,
+    lip: 2,
+    r: 18
   });
-  const nextInterest = Math.min(MAX_INTEREST, Math.floor(state.money / 5));
+  ctx.font = '800 10px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = COLORS.multLight;
+  ctx.fillText('MULT', multPillX + 26, pillY + pillH / 2);
+  ctx.font = '900 20px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText(fmtMult(state.mult), multPillX + 74, pillY + pillH / 2 + 1);
+
+  // Equals Projected Preview
+  const eqX = multPillX + pillW + 20;
   ctx.textAlign = 'left';
-  ctx.font = '700 11px ui-sans-serif, system-ui, sans-serif';
+  ctx.font = '800 13px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = COLORS.textMuted;
-  ctx.fillText('BANKROLL', x + 28, monY + 11);
-  ctx.font = '900 28px ui-monospace, SFMono-Regular, Menlo, monospace';
-  ctx.fillStyle = COLORS.goldLight;
-  ctx.fillText('$' + state.money, x + 28, monY + 28);
+  ctx.fillText('=', eqX, pillY + pillH / 2);
 
-  ctx.textAlign = 'right';
-  ctx.font = '700 11px ui-monospace, SFMono-Regular, Menlo, monospace';
-  ctx.fillStyle = nextInterest > 0 ? '#86EFAC' : COLORS.textDim;
-  ctx.fillText('INTEREST +$' + nextInterest, x + w - 28, monY + 22);
-  ctx.font = '600 10px ui-sans-serif, system-ui, sans-serif';
-  ctx.fillStyle = COLORS.textMuted;
-  ctx.fillText('$1 per $5 (max $5)', x + w - 28, monY + 40);
-
-  // 5. Utility Controls (2x2 Grid pinned neatly at bottom of rail)
-  const utilY = y + h - 102;
-  const btnW = (w - 38) / 2;
-  const btnH = 38;
-  registerButton(ctx, state, 'hud_guide', x + 14, utilY, btnW, btnH, 'HAND GUIDE', {
-    fill: '#162632', hoverFill: '#1F3546', fontSize: 12,
-    onClick: () => { sfx.click(); state.modal = state.modal === 'GUIDE' ? null : 'GUIDE'; }
-  });
-  registerButton(ctx, state, 'hud_crt', x + 24 + btnW, utilY, btnW, btnH, state.crtEnabled ? 'CRT: ON' : 'CRT: OFF', {
-    fill: state.crtEnabled ? '#17312A' : '#162632',
-    hoverFill: '#214038',
-    border: state.crtEnabled ? COLORS.emerald : COLORS.railBorderBright,
-    fontSize: 12,
-    onClick: () => { sfx.click(); state.crtEnabled = !state.crtEnabled; }
-  });
-  registerButton(ctx, state, 'hud_sfx', x + 14, utilY + 46, btnW, btnH, sfx.muted ? 'SFX: OFF' : 'SFX: ON', {
-    fill: '#162632', hoverFill: '#1F3546', fontSize: 12,
-    onClick: () => { sfx.muted = !sfx.muted; if (!sfx.muted) sfx.click(); }
-  });
-  registerButton(ctx, state, 'hud_pause', x + 24 + btnW, utilY + 46, btnW, btnH, 'MENU', {
-    fill: '#162632', hoverFill: '#1F3546', fontSize: 12,
-    onClick: () => { sfx.click(); state.modal = state.modal === 'PAUSE' ? null : 'PAUSE'; }
-  });
+  const projTotal = state.mode === 'SCORING' && state.scoringHandTotal > 0
+    ? state.scoringHandTotal
+    : Math.round(state.chips * state.mult);
+  ctx.font = '900 22px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = projTotal > 0 ? COLORS.goldLight : COLORS.textDim;
+  ctx.fillText(fmtNum(projTotal), eqX + 18, pillY + pillH / 2 + 1);
 }
 
+// ============================================================================
+// BOTTOM ARCANA CARD DOCK (Replaces Balatro's Top Joker Tray!)
+// ============================================================================
 export function drawModifierCardTray(ctx, state, uiCtx) {
   const {
     getUsedCardSlots,
@@ -325,59 +376,57 @@ export function drawModifierCardTray(ctx, state, uiCtx) {
     sellActiveCard
   } = uiCtx;
 
-  const x = 336, y = 24, w = 920, h = 238;
+  const x = 140, y = 554, w = 1000, h = 192;
   drawBevelPanel(ctx, x, y, w, h, {
-    fill: 'rgba(6, 22, 16, 0.78)',
-    border: 'rgba(217, 164, 65, 0.28)',
+    fill: 'rgba(15, 10, 28, 0.86)',
+    border: COLORS.railBorderBright,
     lip: 4,
-    r: 10
+    r: 12
   });
 
   const usedSlots = getUsedCardSlots();
   const maxSlots = getMaxCardSlots();
   const negBonus = maxSlots - BASE_MAX_SLOTS;
 
-  // Quiet unboxed header metadata
+  // Dock Header Bar
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = '800 12px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.font = '800 11.5px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = COLORS.brassBright;
-  ctx.fillText('MODIFIER CARDS', x + 18, y + 12);
+  ctx.fillText('♦ ARCANA MODIFIER DOCK', x + 18, y + 10);
 
   ctx.fillStyle = COLORS.textMuted;
-  ctx.font = '700 12px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.font = '700 11.5px ui-monospace, SFMono-Regular, Menlo, monospace';
   const slotLabel = negBonus > 0
     ? `·  ${state.activeCards.length} / ${maxSlots} SLOTS (+${negBonus} Negative)`
     : `·  ${usedSlots} / ${BASE_MAX_SLOTS} SLOTS`;
-  ctx.fillText(slotLabel, x + 144, y + 12);
+  ctx.fillText(slotLabel, x + 195, y + 10);
 
   ctx.textAlign = 'right';
-  ctx.font = '600 11.5px ui-sans-serif, system-ui, sans-serif';
-  ctx.fillStyle = 'rgba(186, 212, 198, 0.65)';
-  ctx.fillText('Triggers left → right · Drag or click card to reorder / sell', x + w - 18, y + 12);
+  ctx.font = '600 11px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = COLORS.textMuted;
+  ctx.fillText('Triggers Left → Right · Drag or Click Card to Reorder / Sell', x + w - 18, y + 10);
 
-  // Draw empty slot outlines when fewer than 5 cards
   const layout = getActiveCardLayout(state);
   if (state.activeCards.length === 0) {
-    const emptyW = 114, emptyH = 156, gap = 22;
+    const emptyW = 104, emptyH = 140, gap = 22;
     const tot = 5 * emptyW + 4 * gap;
     const sx = x + (w - tot) / 2;
     for (let i = 0; i < 5; i++) {
-      tracePixelRect(ctx, sx + i * (emptyW + gap), y + 48, emptyW, emptyH, 8);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([6, 6]);
+      tracePixelRect(ctx, sx + i * (emptyW + gap), y + 36, emptyW, emptyH, 8);
+      ctx.strokeStyle = 'rgba(212, 163, 89, 0.14)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 5]);
       ctx.stroke();
       ctx.setLineDash([]);
     }
     ctx.textAlign = 'center';
-    ctx.font = '600 14px ui-sans-serif, system-ui, sans-serif';
-    ctx.fillStyle = 'rgba(195, 222, 208, 0.45)';
-    ctx.fillText('Beat Stage 1 to visit the Shop and draft Playing Card modifiers', x + w / 2, y + 122);
+    ctx.font = '600 13.5px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.textDim;
+    ctx.fillText('Clear Chapter 1 to visit the Parlor Shop and draft Arcana Playing Cards', x + w / 2, y + 102);
     return;
   }
 
-  // Update target positions and draw non-dragged cards first
   const canManage = (state.mode === 'PLAYING' || state.mode === 'SHOP') && !state.modal;
 
   state.activeCards.forEach((card, idx) => {
@@ -413,29 +462,28 @@ export function drawModifierCardTray(ctx, state, uiCtx) {
       hovered: isHovered || isFocused
     });
 
-    // Render precision controls (◀ | SELL | ▶) when focused or hovered in PLAYING/SHOP
+    // Render precision controls (◀ | SELL | ▶) ABOVE the card in the bottom dock
     if (canManage && isFocused) {
-      const barY = card.y + layout.cardH / 2 + 6;
-      const bw = Math.max(122, layout.cardW + 6);
+      const barY = card.y - layout.cardH / 2 - 32;
+      const bw = Math.max(122, layout.cardW + 10);
       const bx = card.x - bw / 2;
       registerButton(ctx, state, `card_left_${card.uid}`, bx, barY, 28, 24, '◀', {
-        fill: '#172936', hoverFill: '#244054', fontSize: 11, lip: 2,
+        fill: '#231A38', hoverFill: '#372957', fontSize: 11, lip: 2,
         disabled: idx === 0,
         onClick: () => moveActiveCard(idx, -1)
       });
       registerButton(ctx, state, `card_sell_${card.uid}`, bx + 31, barY, bw - 62, 24, `SELL $${card.sellValue}`, {
-        fill: '#5C1E24', hoverFill: '#8B2630', border: '#F87171', fontSize: 10.5, lip: 2,
+        fill: '#69192B', hoverFill: '#96223C', border: '#FB7185', fontSize: 10.5, lip: 2,
         onClick: () => sellActiveCard(idx)
       });
       registerButton(ctx, state, `card_right_${card.uid}`, bx + bw - 28, barY, 28, 24, '▶', {
-        fill: '#172936', hoverFill: '#244054', fontSize: 11, lip: 2,
+        fill: '#231A38', hoverFill: '#372957', fontSize: 11, lip: 2,
         disabled: idx === state.activeCards.length - 1,
         onClick: () => moveActiveCard(idx, 1)
       });
     }
   });
 
-  // Draw dragged card on top
   if (draggedEntry) {
     drawPlayingCard(ctx, state, draggedEntry.card, state.drag.curX, state.drag.curY, layout.cardW, layout.cardH, {
       debuffed: isCardDebuffedByBoss(draggedEntry.idx),
@@ -446,6 +494,9 @@ export function drawModifierCardTray(ctx, state, uiCtx) {
   }
 }
 
+// ============================================================================
+// CENTER OCTAGONAL VELVET DICE ARENA
+// ============================================================================
 export function drawPlayArena(ctx, state, uiCtx) {
   const {
     isDieDebuffedByBoss,
@@ -455,64 +506,70 @@ export function drawPlayArena(ctx, state, uiCtx) {
     clearSelectedDice
   } = uiCtx;
 
-  // Contextual status / scoring cascade banner
-  const cx = 796;
+  const cx = 640;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
+  // Status / Scoring cascade banner
   if (state.mode === 'SCORING' && state.scoringBanner) {
-    drawBevelPanel(ctx, 446, 284, 700, 42, {
-      fill: 'rgba(14, 23, 30, 0.92)',
-      border: COLORS.brass,
+    drawBevelPanel(ctx, cx - 340, 182, 680, 38, {
+      fill: 'rgba(22, 15, 38, 0.95)',
+      border: COLORS.brassBright,
       lip: 3,
-      r: 7
+      r: 18
     });
-    ctx.font = '800 16px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.font = '800 15px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = COLORS.goldLight;
-    ctx.fillText(state.scoringBanner, cx, 305);
+    ctx.fillText(state.scoringBanner, cx, 201);
   } else if (state.noticeTimer > 0 && state.noticeText) {
-    drawBevelPanel(ctx, 446, 284, 700, 42, {
-      fill: 'rgba(42, 18, 22, 0.92)',
+    drawBevelPanel(ctx, cx - 340, 182, 680, 38, {
+      fill: 'rgba(54, 16, 28, 0.95)',
       border: COLORS.multLight,
       lip: 3,
-      r: 7
+      r: 18
     });
     ctx.font = '700 14px ui-sans-serif, system-ui, sans-serif';
-    ctx.fillStyle = '#FECACA';
-    ctx.fillText(state.noticeText, cx, 305);
+    ctx.fillStyle = '#FECDD3';
+    ctx.fillText(state.noticeText, cx, 201);
   } else {
-    ctx.font = '600 14px ui-sans-serif, system-ui, sans-serif';
-    ctx.fillStyle = 'rgba(202, 228, 215, 0.68)';
-    ctx.fillText('Click 1–3 dice to form a hand · Reroll tumbles unselected dice', cx, 305);
+    ctx.font = '600 13px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText('Select up to 3 dice to lock & score · Reroll tumbles all unlocked dice', cx, 201);
   }
 
-  // Subtle recessed dice lane
-  tracePixelRect(ctx, 366, 368, 860, 214, 14);
-  ctx.fillStyle = 'rgba(4, 18, 13, 0.34)';
+  // Recessed Art-Deco Octagonal Dice Tray in Center of Screen
+  tracePixelRect(ctx, 200, 232, 880, 224, 24);
+  ctx.fillStyle = 'rgba(8, 4, 16, 0.48)';
   ctx.fill();
-  ctx.strokeStyle = 'rgba(217, 164, 65, 0.14)';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(212, 163, 89, 0.25)';
+  ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Draw all 5 dice
+  // Inner brass inlay border
+  tracePixelRect(ctx, 208, 240, 864, 208, 18);
+  ctx.strokeStyle = 'rgba(212, 163, 89, 0.10)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Draw all 5 dice centered at Y = 368
   for (const d of state.dice) {
     drawDie(ctx, state, d, false, isDieDebuffedByBoss(d.value));
   }
 
-  // Primary Action Controls
+  // Action Controls Bar centered between Dice Tray and Bottom Card Dock
   const selectedCount = state.dice.filter(d => d.selected).length;
   const unselectedCount = state.dice.length - selectedCount;
   const locked = state.mode !== 'PLAYING' || Boolean(state.modal) || isAnyDieTumbling();
   const minDiceNeeded = (state.activeBoss && state.activeBoss.id === 'MIN_TWO_DICE') ? 2 : 1;
 
-  const btnY = 636;
-  registerButton(ctx, state, 'btn_play', 446, btnY, 260, 66, 'PLAY HAND', {
-    fill: '#15803D',
-    hoverFill: '#16A34A',
-    border: '#4ADE80',
-    fontSize: 19,
+  const btnY = 474;
+  registerButton(ctx, state, 'btn_play', 290, btnY, 270, 60, 'SCORE HAND', {
+    fill: '#0F766E',
+    hoverFill: '#0D9488',
+    border: '#5EEAD4',
+    fontSize: 18,
     sublabel: selectedCount >= minDiceNeeded ? `${state.liveHandName}  [Space]` : `Select ${minDiceNeeded}–3 Dice`,
-    glow: 'rgba(74, 222, 128, 0.35)',
+    glow: 'rgba(45, 212, 191, 0.35)',
     disabled: locked || selectedCount < minDiceNeeded,
     onClick: playSelectedHand
   });
@@ -520,23 +577,23 @@ export function drawPlayArena(ctx, state, uiCtx) {
   const rerollLabel = selectedCount === 0
     ? `REROLL ALL (${state.rerollsLeft})`
     : `REROLL ${unselectedCount} (${state.rerollsLeft})`;
-  registerButton(ctx, state, 'btn_reroll', 724, btnY, 260, 66, rerollLabel, {
+  registerButton(ctx, state, 'btn_reroll', 576, btnY, 270, 60, rerollLabel, {
     fill: '#B45309',
     hoverFill: '#D97706',
     border: '#FCD34D',
-    fontSize: 18,
-    sublabel: selectedCount > 0 ? `Keep ${selectedCount} selected  [R]` : 'Tumble all 5 dice  [R]',
+    fontSize: 17,
+    sublabel: selectedCount > 0 ? `Keep ${selectedCount} locked  [R]` : 'Tumble all 5 dice  [R]',
     glow: 'rgba(252, 211, 77, 0.3)',
     disabled: locked || state.rerollsLeft <= 0 || unselectedCount === 0,
     onClick: triggerReroll
   });
 
-  registerButton(ctx, state, 'btn_clear', 1002, btnY, 138, 66, 'CLEAR', {
-    fill: '#182834',
-    hoverFill: '#243B4D',
+  registerButton(ctx, state, 'btn_clear', 862, btnY, 128, 60, 'UNLOCK', {
+    fill: COLORS.railPanel,
+    hoverFill: '#2E234A',
     border: COLORS.railBorderBright,
-    fontSize: 15,
-    sublabel: '[C]',
+    fontSize: 14,
+    sublabel: 'Clear [C]',
     disabled: locked || selectedCount === 0,
     onClick: clearSelectedDice
   });
@@ -546,72 +603,70 @@ export function drawCashOutPanel(ctx, state, uiCtx) {
   const { getStageLabel, claimCashOut } = uiCtx;
   const d = state.cashOutData;
   if (!d) return;
-  const x = 496, y = 294, w = 600, h = 412;
+  const w = 600, h = 344;
+  const x = (1280 - w) / 2, y = 186;
   drawBevelPanel(ctx, x, y, w, h, {
-    fill: '#101B22',
+    fill: '#140E24',
     border: COLORS.brassBright,
     lip: 6,
-    r: 12,
-    glow: 'rgba(246, 202, 101, 0.25)'
+    r: 14,
+    glow: 'rgba(245, 205, 121, 0.25)'
   });
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  ctx.font = '900 28px ui-sans-serif, system-ui, sans-serif';
-  ctx.fillStyle = '#6EE7B7';
-  ctx.fillText(d.isRunVictory ? 'STAGE 9 BOSS DEFEATED!' : `STAGE ${state.stage} CLEARED!`, x + w / 2, y + 26);
+  ctx.font = '900 26px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = '#5EEAD4';
+  ctx.fillText(d.isRunVictory ? 'CHAPTER 9 BOSS CONQUERED!' : `CHAPTER ${state.stage} CLEARED!`, x + w / 2, y + 22);
 
   ctx.font = '600 13px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = COLORS.textMuted;
-  ctx.fillText(`Score ${fmtNum(state.stageScore)}  /  Target ${fmtNum(state.targetScore)}`, x + w / 2, y + 64);
+  ctx.fillText(`Score ${fmtNum(state.stageScore)}  /  Goal ${fmtNum(state.targetScore)}`, x + w / 2, y + 56);
 
-  // Ledger rows
   const rows = [
-    { label: `${getStageLabel(state.stage)} Clear Bonus`, val: `+$${d.baseReward}`, show: state.cashOutReveal >= 0.15 },
-    { label: `Remaining Hands (${d.handsCount} × $1)`, val: `+$${d.handsBonus}`, show: state.cashOutReveal >= 0.45 },
-    { label: `Interest ($1 per $5 saved, max $5)`, val: `+$${d.interest}`, show: state.cashOutReveal >= 0.75 }
+    { label: `${getStageLabel(state.stage)} Clear Bounty`, val: `+$${d.baseReward}`, show: state.cashOutReveal >= 0.15 },
+    { label: `Unused Hands (${d.handsCount} × $1)`, val: `+$${d.handsBonus}`, show: state.cashOutReveal >= 0.45 },
+    { label: `Treasury Interest ($1 per $5 held, max $5)`, val: `+$${d.interest}`, show: state.cashOutReveal >= 0.75 }
   ];
 
-  let ry = y + 114;
+  let ry = y + 96;
   for (const row of rows) {
     if (row.show) {
       ctx.textAlign = 'left';
-      ctx.font = '600 16px ui-sans-serif, system-ui, sans-serif';
+      ctx.font = '600 15px ui-sans-serif, system-ui, sans-serif';
       ctx.fillStyle = COLORS.textMain;
       ctx.fillText(row.label, x + 48, ry);
       ctx.textAlign = 'right';
-      ctx.font = '800 19px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.font = '800 18px ui-monospace, SFMono-Regular, Menlo, monospace';
       ctx.fillStyle = COLORS.goldLight;
       ctx.fillText(row.val, x + w - 48, ry - 2);
     }
-    ry += 44;
+    ry += 38;
   }
 
-  // Divider
   ctx.strokeStyle = COLORS.railBorderBright;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(x + 48, ry + 8);
-  ctx.lineTo(x + w - 48, ry + 8);
+  ctx.moveTo(x + 48, ry + 4);
+  ctx.lineTo(x + w - 48, ry + 4);
   ctx.stroke();
 
-  // Total
   ctx.textAlign = 'left';
-  ctx.font = '800 18px ui-sans-serif, system-ui, sans-serif';
+  ctx.font = '800 17px ui-sans-serif, system-ui, sans-serif';
   ctx.fillStyle = COLORS.textMain;
-  ctx.fillText('TOTAL PAYOUT', x + 48, ry + 26);
+  ctx.fillText('TOTAL PAYOUT', x + 48, ry + 18);
   ctx.textAlign = 'right';
-  ctx.font = '900 28px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.font = '900 26px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = COLORS.goldLight;
-  ctx.fillText(`+$${d.total}`, x + w - 48, ry + 20);
+  ctx.fillText(`+$${d.total}`, x + w - 48, ry + 13);
 
-  registerButton(ctx, state, 'btn_cashout', x + 110, y + h - 84, w - 220, 58,
-    d.isRunVictory ? 'CLAIM VICTORY' : 'CASH OUT → SHOP', {
+  registerButton(ctx, state, 'btn_cashout', x + 120, y + h - 72, w - 240, 52,
+    d.isRunVictory ? 'CLAIM VICTORY' : 'COLLECT & VISIT SHOP', {
       fill: '#D97706',
       hoverFill: '#F59E0B',
       border: '#FDE047',
-      textColor: '#0B1318',
-      fontSize: 18,
+      textColor: '#0E0A18',
+      fontSize: 17,
       sublabel: '[Space / Enter]',
       glow: 'rgba(253, 224, 71, 0.35)',
       onClick: claimCashOut
@@ -629,74 +684,64 @@ export function drawShopArena(ctx, state, uiCtx) {
     SHOP_REROLL_COST
   } = uiCtx;
 
-  const x = 336, y = 278, w = 920, h = 458;
+  const w = 960, h = 362;
+  const x = (1280 - w) / 2, y = 178;
   drawBevelPanel(ctx, x, y, w, h, {
-    fill: 'rgba(13, 23, 30, 0.90)',
+    fill: 'rgba(18, 12, 32, 0.92)',
     border: COLORS.brass,
     lip: 5,
-    r: 10
+    r: 14
   });
 
   // Shop Header
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = '900 24px ui-sans-serif, system-ui, sans-serif';
+  ctx.font = '900 22px ui-sans-serif, system-ui, sans-serif';
   ctx.fillStyle = COLORS.brassBright;
-  ctx.fillText('CARD SHOP', x + 26, y + 18);
+  ctx.fillText('♦ ARCANA PARLOR BAZAAR', x + 26, y + 16);
 
   const nextStage = state.stage + 1;
   const nextIsBoss = nextStage % 3 === 0;
   ctx.textAlign = 'right';
-  ctx.font = '700 13px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.font = '700 12.5px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = nextIsBoss ? COLORS.multLight : COLORS.textMuted;
   ctx.fillText(
-    `Next: Stage ${nextStage} (${getStageLabel(nextStage)}) · Target ${fmtNum(getStageTarget(nextStage))}`,
+    `Up Next: Chapter ${nextStage} (${getStageLabel(nextStage)}) · Goal ${fmtNum(getStageTarget(nextStage))}`,
     x + w - 26,
-    y + 24
+    y + 20
   );
 
-  if (state.noticeTimer > 0 && state.noticeText) {
-    ctx.textAlign = 'center';
-    ctx.font = '700 13px ui-sans-serif, system-ui, sans-serif';
-    ctx.fillStyle = '#FECACA';
-    ctx.fillText(state.noticeText, x + w / 2, y + 54);
-  } else {
-    ctx.textAlign = 'center';
-    ctx.font = '600 13px ui-sans-serif, system-ui, sans-serif';
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText('Hover any card for trigger & edition details · Save $5 increments for Interest', x + w / 2, y + 54);
-  }
-
-  // 3 Showcase Cards
+  // 3 Showcase Cards on Left/Center + Action Column on Right
   const rects = getShopCardRects();
   const slotsFull = state.activeCards.length >= getMaxCardSlots();
 
   rects.forEach((r, idx) => {
+    // Shift shop cards slightly left to make room for bazaar action controls on right
+    const cardRect = { x: r.x - 120, y: r.y, w: r.w, h: r.h };
     const card = state.shopCards[idx];
 
-    // Pedestal backing
-    tracePixelRect(ctx, r.x - 14, r.y - 12, r.w + 28, r.h + 76, 10);
-    ctx.fillStyle = 'rgba(5, 13, 18, 0.65)';
+    tracePixelRect(ctx, cardRect.x - 12, cardRect.y - 10, cardRect.w + 24, cardRect.h + 68, 10);
+    ctx.fillStyle = 'rgba(9, 6, 18, 0.68)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.strokeStyle = 'rgba(212, 163, 89, 0.16)';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
     if (!card) {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = '800 15px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.font = '800 14px ui-monospace, SFMono-Regular, Menlo, monospace';
       ctx.fillStyle = COLORS.textDim;
-      ctx.fillText('SOLD', r.x + r.w / 2, r.y + r.h / 2);
+      ctx.fillText('ACQUIRED', cardRect.x + cardRect.w / 2, cardRect.y + cardRect.h / 2);
       return;
     }
 
-    const hovered = !state.modal && hitTest(state.mouseX, state.mouseY, r);
+    const hovered = !state.modal && hitTest(state.mouseX, state.mouseY, cardRect);
     if (hovered) {
-      state.hoveredCard = { zone: 'shop', card, idx, rect: r };
+      state.hoveredCard = { zone: 'shop', card, idx, rect: cardRect };
     }
 
-    drawPlayingCard(ctx, state, card, r.x + r.w / 2, r.y + r.h / 2, r.w, r.h, {
+    drawPlayingCard(ctx, state, card, cardRect.x + cardRect.w / 2, cardRect.y + cardRect.h / 2, cardRect.w, cardRect.h, {
       hovered
     });
 
@@ -704,42 +749,54 @@ export function drawShopArena(ctx, state, uiCtx) {
     const canAfford = state.money >= card.price;
     const canFit = isNeg || !slotsFull;
     const buyDisabled = !canAfford || !canFit || Boolean(state.modal);
-    let buyLabel = `BUY $${card.price}`;
-    if (!canFit) buyLabel = 'SLOTS FULL';
-    else if (isNeg) buyLabel = `BUY $${card.price} (+1)`;
+    let buyLabel = `DRAFT $${card.price}`;
+    if (!canFit) buyLabel = 'DOCK FULL';
+    else if (isNeg) buyLabel = `DRAFT $${card.price} (+1)`;
 
-    registerButton(ctx, state, `shop_buy_${idx}`, r.x - 4, r.y + r.h + 14, r.w + 8, 40, buyLabel, {
-      fill: buyDisabled ? '#1B252E' : '#15803D',
-      hoverFill: '#16A34A',
-      border: buyDisabled ? COLORS.railBorder : '#4ADE80',
-      fontSize: 14,
+    registerButton(ctx, state, `shop_buy_${idx}`, cardRect.x - 2, cardRect.y + cardRect.h + 12, cardRect.w + 4, 36, buyLabel, {
+      fill: buyDisabled ? '#1B162A' : '#0F766E',
+      hoverFill: '#0D9488',
+      border: buyDisabled ? COLORS.railBorder : '#5EEAD4',
+      fontSize: 13,
       disabled: buyDisabled,
       onClick: () => buyShopCard(idx)
     });
   });
 
-  // Bottom Shop Action Bar
-  const actY = y + h - 76;
-  registerButton(ctx, state, 'shop_reroll', x + 150, actY, 260, 56, `REROLL SHOP ($${SHOP_REROLL_COST})`, {
+  // Right Column inside Shop Panel: Reroll & Next Chapter Buttons
+  const sideX = x + w - 256;
+  registerButton(ctx, state, 'shop_reroll', sideX, y + 84, 226, 64, `REFRESH BAZAAR ($${SHOP_REROLL_COST})`, {
     fill: '#B45309',
     hoverFill: '#D97706',
     border: '#FCD34D',
-    fontSize: 16,
-    sublabel: 'Fresh 3 cards  [R]',
+    fontSize: 15,
+    sublabel: 'Roll 3 new cards  [R]',
     disabled: state.money < SHOP_REROLL_COST || Boolean(state.modal),
     onClick: rerollShop
   });
 
-  registerButton(ctx, state, 'shop_next', x + w - 410, actY, 260, 56, `NEXT STAGE (${nextStage}) ▸`, {
-    fill: '#2563EB',
-    hoverFill: '#3B82F6',
-    border: '#93C5FD',
-    fontSize: 17,
+  registerButton(ctx, state, 'shop_next', sideX, y + 168, 226, 72, `NEXT CHAPTER (${nextStage}) ▸`, {
+    fill: '#6D28D9',
+    hoverFill: '#7C3AED',
+    border: '#C4B5FD',
+    fontSize: 16,
     sublabel: `${getStageLabel(nextStage)}  [Space]`,
-    glow: 'rgba(96, 165, 250, 0.35)',
+    glow: 'rgba(167, 139, 250, 0.35)',
     disabled: Boolean(state.modal),
     onClick: () => startStage(nextStage)
   });
+
+  // Notice or tip at bottom of shop right column
+  ctx.textAlign = 'center';
+  ctx.font = '600 11.5px ui-sans-serif, system-ui, sans-serif';
+  if (state.noticeTimer > 0 && state.noticeText) {
+    ctx.fillStyle = '#FDA4AF';
+    ctx.fillText(state.noticeText, sideX + 113, y + 275);
+  } else {
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText('Hold $5 increments for', sideX + 113, y + 266);
+    ctx.fillText('up to +$5 Interest per stage', sideX + 113, y + 284);
+  }
 }
 
 export function drawCardTooltip(ctx, state, uiCtx) {
@@ -757,21 +814,21 @@ export function drawCardTooltip(ctx, state, uiCtx) {
   if (ed.bonusText) tipH += 26;
   if (def.isScaling) tipH += 22;
   if (debuffed) tipH += 24;
-  tipH += 24; // Footer sell/price line
+  tipH += 24;
 
   let tx = rect.x + rect.w / 2 - tipW / 2;
-  tx = clamp(tx, 336, LOGICAL_W - tipW - 18);
-  // Position below active tray cards, or above shop cards
-  let ty = zone === 'active' ? rect.y + rect.h + 38 : rect.y - tipH - 16;
-  if (ty + tipH > LOGICAL_H - 14) ty = rect.y - tipH - 12;
-  if (ty < 14) ty = 14;
+  tx = clamp(tx, 24, LOGICAL_W - tipW - 24);
+  // Active cards are in the bottom dock -> position tooltip ABOVE the card
+  let ty = zone === 'active' ? rect.y - tipH - 38 : rect.y - tipH - 14;
+  if (ty < 14) ty = rect.y + rect.h + 16;
+  if (ty + tipH > LOGICAL_H - 14) ty = LOGICAL_H - tipH - 14;
 
   drawBevelPanel(ctx, tx, ty, tipW, tipH, {
-    fill: 'rgba(10, 17, 24, 0.97)',
+    fill: 'rgba(14, 10, 26, 0.97)',
     border: card.edition !== 'standard' ? ed.color : COLORS.brassBright,
     lip: 4,
-    r: 8,
-    glow: 'rgba(0,0,0,0.6)'
+    r: 10,
+    glow: 'rgba(0,0,0,0.65)'
   });
 
   let curY = ty + 14;
@@ -794,7 +851,7 @@ export function drawCardTooltip(ctx, state, uiCtx) {
 
   curY += 20;
   ctx.font = '600 13px ui-sans-serif, system-ui, sans-serif';
-  ctx.fillStyle = '#E2ECE7';
+  ctx.fillStyle = '#EDE9FE';
   for (const line of descLines) {
     ctx.fillText(line, tx + 14, curY);
     curY += 18;
@@ -820,7 +877,7 @@ export function drawCardTooltip(ctx, state, uiCtx) {
     curY += 4;
     ctx.font = '800 12px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = COLORS.multLight;
-    ctx.fillText('DISABLED BY BOSS (Drag right to restore)', tx + 14, curY);
+    ctx.fillText('DISABLED BY CURSE (Drag right to restore)', tx + 14, curY);
     curY += 20;
   }
 
@@ -830,14 +887,13 @@ export function drawCardTooltip(ctx, state, uiCtx) {
   if (zone === 'active') {
     ctx.fillText(`Sell Value: $${card.sellValue} · Click card for controls`, tx + 14, curY);
   } else {
-    ctx.fillText(`Shop Price: $${card.price} · Sell Value: $${card.sellValue}`, tx + 14, curY);
+    ctx.fillText(`Bazaar Price: $${card.price} · Sell Value: $${card.sellValue}`, tx + 14, curY);
   }
 }
 
 export function drawTitleScreen(ctx, state, uiCtx) {
   const { startNewRun, LOGICAL_W } = uiCtx;
 
-  // Live atmospheric dice gently bobbing on felt flanks
   for (const td of state.titleDice) {
     const bob = Math.sin(state.time * 1.6 + td.phase) * 10;
     drawDie(ctx, state, {
@@ -854,7 +910,6 @@ export function drawTitleScreen(ctx, state, uiCtx) {
     }, true, false);
   }
 
-  // Fan of shimmering signature modifier cards
   const fanCx = LOGICAL_W / 2;
   const fanCy = 468;
   state.titleCards.forEach((c, i) => {
@@ -865,76 +920,68 @@ export function drawTitleScreen(ctx, state, uiCtx) {
     drawPlayingCard(ctx, state, c, cx, cy, 114, 156, { tilt: angle });
   });
 
-  // Bespoke retro-modern pixel-vector title lockup
   const titleY = 178;
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  // Brass decorative rule & suit emblem
-  drawSuitIcon(ctx, 'spades', fanCx - 220, titleY - 56, 11, COLORS.brass);
-  drawSuitIcon(ctx, 'hearts', fanCx - 192, titleY - 56, 11, COLORS.suitHearts);
-  drawSuitIcon(ctx, 'diamonds', fanCx + 192, titleY - 56, 11, COLORS.suitDiamonds);
-  drawSuitIcon(ctx, 'clubs', fanCx + 220, titleY - 56, 11, COLORS.emerald);
+  drawSuitIcon(ctx, 'spades', fanCx - 235, titleY - 56, 11, COLORS.brass);
+  drawSuitIcon(ctx, 'hearts', fanCx - 207, titleY - 56, 11, COLORS.suitHearts);
+  drawSuitIcon(ctx, 'diamonds', fanCx + 207, titleY - 56, 11, COLORS.suitDiamonds);
+  drawSuitIcon(ctx, 'clubs', fanCx + 235, titleY - 56, 11, COLORS.chipsLight);
 
   ctx.font = '800 13px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = COLORS.brassBright;
-  ctx.fillText('ROGUELIKE DICE & CARD DECKBUILDER', fanCx, titleY - 56);
+  ctx.fillText('ART-DECO DICE & ARCANA PARLOR ROGUELIKE', fanCx, titleY - 56);
 
-  // Layered phosphor shadow + gold/ivory title
   ctx.font = '900 84px ui-sans-serif, system-ui, sans-serif';
-  ctx.fillStyle = '#04120D';
+  ctx.fillStyle = '#070310';
   ctx.fillText('VELVET ROLL', fanCx + 5, titleY + 7);
   ctx.fillStyle = COLORS.brass;
   ctx.fillText('VELVET ROLL', fanCx + 2, titleY + 3);
-  ctx.shadowColor = 'rgba(246, 202, 101, 0.35)';
+  ctx.shadowColor = 'rgba(245, 205, 121, 0.35)';
   ctx.shadowBlur = 24;
-  ctx.fillStyle = '#FFFDF7';
+  ctx.fillStyle = '#FAF6EE';
   ctx.fillText('VELVET ROLL', fanCx, titleY);
   ctx.restore();
 
-  // Subtitle
   ctx.textAlign = 'center';
   ctx.font = '600 16px ui-sans-serif, system-ui, sans-serif';
-  ctx.fillStyle = '#C7DFD3';
-  ctx.fillText('Sculpt 3-dice combos · Stack 18 card modifiers across 5 editions · Beat 9 stages + Endless', fanCx, 250);
+  ctx.fillStyle = COLORS.textMuted;
+  ctx.fillText('Sculpt 3-dice combos · Dock 18 Arcana cards across 5 editions · Conquer 9 chapters + Endless', fanCx, 250);
 
-  // Primary CTA
-  registerButton(ctx, state, 'title_play', fanCx - 140, 286, 280, 62, 'PLAY RUN', {
-    fill: '#15803D',
-    hoverFill: '#16A34A',
-    border: '#4ADE80',
+  registerButton(ctx, state, 'title_play', fanCx - 140, 286, 280, 62, 'ENTER PARLOR', {
+    fill: '#0F766E',
+    hoverFill: '#0D9488',
+    border: '#5EEAD4',
     fontSize: 22,
     sublabel: 'Press Enter or Space',
-    glow: 'rgba(74, 222, 128, 0.4)',
+    glow: 'rgba(45, 212, 191, 0.4)',
     onClick: startNewRun
   });
 
-  // Compact secondary utility row
   registerButton(ctx, state, 'title_guide', fanCx - 175, 594, 165, 42, 'HANDS & RULES', {
-    fill: '#13222C', hoverFill: '#1D3342', fontSize: 13,
+    fill: COLORS.railPanel, hoverFill: '#2D224A', fontSize: 13,
     onClick: () => { sfx.click(); state.modal = 'GUIDE'; }
   });
   registerButton(ctx, state, 'title_crt', fanCx + 10, 594, 165, 42, state.crtEnabled ? 'CRT GLOW: ON' : 'CRT GLOW: OFF', {
-    fill: '#13222C', hoverFill: '#1D3342', fontSize: 13,
+    fill: COLORS.railPanel, hoverFill: '#2D224A', fontSize: 13,
     onClick: () => { sfx.click(); state.crtEnabled = !state.crtEnabled; }
   });
 
-  // Clean unboxed local stats if available
   if (state.stats.bestHand > 0 || state.stats.wins > 0) {
     ctx.font = '700 13px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = COLORS.brassBright;
     ctx.fillText(
-      `Best Hand: ${fmtNum(state.stats.bestHand)}   ·   Best Stage: ${state.stats.bestStage}   ·   Runs Won: ${state.stats.wins}`,
+      `Best Hand: ${fmtNum(state.stats.bestHand)}   ·   Best Chapter: ${state.stats.bestStage}   ·   Runs Won: ${state.stats.wins}`,
       fanCx,
       664
     );
   }
 
-  // Single flat control-hint line
   ctx.font = '600 12.5px ui-monospace, SFMono-Regular, Menlo, monospace';
-  ctx.fillStyle = 'rgba(182, 212, 198, 0.58)';
-  ctx.fillText('Click Dice (1–5) · Space Play Hand · R Reroll · Drag Cards to Reorder · Esc Pause', fanCx, 718);
+  ctx.fillStyle = COLORS.textDim;
+  ctx.fillText('Click Dice (1–5) · Space Score Hand · R Reroll · Drag Dock Cards to Reorder · Esc Pause', fanCx, 718);
 }
 
 export function drawEndModal(ctx, state, isVictory, uiCtx) {
@@ -943,43 +990,42 @@ export function drawEndModal(ctx, state, isVictory, uiCtx) {
   state.buttons = [];
   state.hoverButtonId = null;
   state.hoveredCard = null;
-  ctx.fillStyle = 'rgba(3, 10, 8, 0.78)';
+  ctx.fillStyle = 'rgba(7, 3, 16, 0.82)';
   ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
 
   const w = 560, h = 420;
   const x = (LOGICAL_W - w) / 2;
   const y = (LOGICAL_H - h) / 2;
   drawBevelPanel(ctx, x, y, w, h, {
-    fill: '#0F1A22',
+    fill: '#140E24',
     border: isVictory ? COLORS.brassBright : COLORS.multRed,
     lip: 6,
-    r: 12,
-    glow: isVictory ? 'rgba(246, 202, 101, 0.3)' : 'rgba(220, 38, 38, 0.3)'
+    r: 14,
+    glow: isVictory ? 'rgba(245, 205, 121, 0.3)' : 'rgba(225, 29, 72, 0.3)'
   });
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.font = '900 36px ui-sans-serif, system-ui, sans-serif';
   ctx.fillStyle = isVictory ? COLORS.goldLight : COLORS.multLight;
-  ctx.fillText(isVictory ? 'RUN VICTORY!' : 'OUT OF HANDS', x + w / 2, y + 32);
+  ctx.fillText(isVictory ? 'PARLOR CHAMPION!' : 'OUT OF HANDS', x + w / 2, y + 32);
 
   ctx.font = '600 15px ui-sans-serif, system-ui, sans-serif';
   ctx.fillStyle = COLORS.textMuted;
   ctx.fillText(
     isVictory
-      ? 'You conquered all 9 stages and 3 Boss Blinds!'
-      : `Stopped at Stage ${state.stage} (${fmtNum(state.stageScore)} / ${fmtNum(state.targetScore)})`,
+      ? 'You conquered all 9 chapters and 3 Boss Curses!'
+      : `Fell short at Chapter ${state.stage} (${fmtNum(state.stageScore)} / ${fmtNum(state.targetScore)})`,
     x + w / 2,
     y + 82
   );
 
-  // Run stats summary
   const rows = [
-    ['Stage Reached', state.endless ? `Endless ${state.stage}` : `${state.stage} / 9`],
+    ['Chapter Reached', state.endless ? `Endless ${state.stage}` : `${state.stage} / 9`],
     ['Best Single Hand', fmtNum(state.bestHandScore)],
-    ['Hands Played', String(state.handsPlayedRun)],
-    ['Total Money Earned', '$' + state.totalMoneyEarned],
-    ['Final Modifier Cards', String(state.activeCards.length)]
+    ['Hands Scored', String(state.handsPlayedRun)],
+    ['Total Gold Earned', '$' + state.totalMoneyEarned],
+    ['Docked Arcana Cards', String(state.activeCards.length)]
   ];
 
   let ry = y + 132;
@@ -997,7 +1043,7 @@ export function drawEndModal(ctx, state, isVictory, uiCtx) {
 
   if (isVictory) {
     registerButton(ctx, state, 'end_endless', x + 44, y + h - 84, 228, 54, 'CONTINUE ENDLESS', {
-      fill: '#7C3AED', hoverFill: '#8B5CF6', border: '#C4B5FD', fontSize: 15,
+      fill: '#6D28D9', hoverFill: '#7C3AED', border: '#C4B5FD', fontSize: 15,
       onClick: () => {
         sfx.buyCard();
         state.endless = true;
@@ -1005,16 +1051,16 @@ export function drawEndModal(ctx, state, isVictory, uiCtx) {
       }
     });
     registerButton(ctx, state, 'end_new', x + w - 272, y + h - 84, 228, 54, 'NEW RUN', {
-      fill: '#15803D', hoverFill: '#16A34A', border: '#4ADE80', fontSize: 16,
+      fill: '#0F766E', hoverFill: '#0D9488', border: '#5EEAD4', fontSize: 16,
       onClick: startNewRun
     });
   } else {
     registerButton(ctx, state, 'end_retry', x + 70, y + h - 84, 200, 54, 'PLAY AGAIN', {
-      fill: '#15803D', hoverFill: '#16A34A', border: '#4ADE80', fontSize: 16,
+      fill: '#0F766E', hoverFill: '#0D9488', border: '#5EEAD4', fontSize: 16,
       onClick: startNewRun
     });
     registerButton(ctx, state, 'end_title', x + w - 270, y + h - 84, 200, 54, 'TITLE SCREEN', {
-      fill: '#182936', hoverFill: '#243B4D', fontSize: 15,
+      fill: COLORS.railPanel, hoverFill: '#2D224A', fontSize: 15,
       onClick: () => { sfx.click(); state.mode = 'TITLE_MENU'; state.modal = null; }
     });
   }
@@ -1027,14 +1073,14 @@ export function drawOverlayModal(ctx, state, uiCtx) {
   state.buttons = [];
   state.hoverButtonId = null;
   state.hoveredCard = null;
-  ctx.fillStyle = 'rgba(3, 10, 8, 0.78)';
+  ctx.fillStyle = 'rgba(7, 3, 16, 0.82)';
   ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
 
   if (state.modal === 'PAUSE') {
     const w = 420, h = 330;
     const x = (LOGICAL_W - w) / 2, y = (LOGICAL_H - h) / 2;
     drawBevelPanel(ctx, x, y, w, h, {
-      fill: '#0F1A22', border: COLORS.brassBright, lip: 6, r: 12
+      fill: '#140E24', border: COLORS.brassBright, lip: 6, r: 14
     });
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
@@ -1043,7 +1089,7 @@ export function drawOverlayModal(ctx, state, uiCtx) {
     ctx.fillText('PAUSED', x + w / 2, y + 28);
 
     registerButton(ctx, state, 'pause_resume', x + 60, y + 88, w - 120, 48, 'RESUME RUN', {
-      fill: '#15803D', hoverFill: '#16A34A', border: '#4ADE80', fontSize: 16,
+      fill: '#0F766E', hoverFill: '#0D9488', border: '#5EEAD4', fontSize: 16,
       onClick: () => { sfx.click(); state.modal = null; }
     });
     registerButton(ctx, state, 'pause_restart', x + 60, y + 150, w - 120, 48, 'RESTART RUN', {
@@ -1051,7 +1097,7 @@ export function drawOverlayModal(ctx, state, uiCtx) {
       onClick: startNewRun
     });
     registerButton(ctx, state, 'pause_title', x + 60, y + 212, w - 120, 48, 'EXIT TO TITLE', {
-      fill: '#1A2B38', hoverFill: '#253D4F', fontSize: 15,
+      fill: COLORS.railPanel, hoverFill: '#2D224A', fontSize: 15,
       onClick: () => { sfx.click(); state.modal = null; state.mode = 'TITLE_MENU'; }
     });
     return;
@@ -1061,30 +1107,29 @@ export function drawOverlayModal(ctx, state, uiCtx) {
     const w = 820, h = 580;
     const x = (LOGICAL_W - w) / 2, y = (LOGICAL_H - h) / 2;
     drawBevelPanel(ctx, x, y, w, h, {
-      fill: '#0F1A22', border: COLORS.brassBright, lip: 6, r: 12
+      fill: '#140E24', border: COLORS.brassBright, lip: 6, r: 14
     });
 
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.font = '900 24px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = COLORS.brassBright;
-    ctx.fillText('SCORING HANDS & EDITIONS', x + 32, y + 24);
+    ctx.fillText('SCORING HANDS & ARCANA EDITIONS', x + 32, y + 24);
 
     registerButton(ctx, state, 'guide_close', x + w - 124, y + 20, 92, 36, 'CLOSE', {
-      fill: '#1A2B38', hoverFill: '#284154', fontSize: 13,
+      fill: COLORS.railPanel, hoverFill: '#2D224A', fontSize: 13,
       onClick: () => { sfx.click(); state.modal = null; }
     });
 
-    // Left column: 3-Dice Scoring Hands
     ctx.font = '800 13px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText('3-DICE HANDS (Each scored die adds its pips to Chips)', x + 32, y + 72);
+    ctx.fillText('3-DICE HANDS (Each scored die adds its pips to Base Points)', x + 32, y + 72);
 
     let hy = y + 100;
     for (const hid of HAND_ORDER.slice().reverse()) {
       const hd = HANDS[hid];
       drawBevelPanel(ctx, x + 32, hy, 420, 56, {
-        fill: '#14232E', border: COLORS.railBorder, lip: 2, r: 6
+        fill: COLORS.railPanel, border: COLORS.railBorder, lip: 2, r: 8
       });
       ctx.textAlign = 'left';
       ctx.font = '800 15px ui-sans-serif, system-ui, sans-serif';
@@ -1105,19 +1150,18 @@ export function drawOverlayModal(ctx, state, uiCtx) {
       hy += 66;
     }
 
-    // Right column: Card Editions + Economy
     const rx = x + 480;
     ctx.textAlign = 'left';
     ctx.font = '800 13px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText('CARD EDITIONS (Rolled in Shop)', rx, y + 72);
+    ctx.fillText('CARD EDITIONS (Rolled in Bazaar)', rx, y + 72);
 
     const edList = [
       ['Standard (80%)', 'Normal card behavior', '#CBD5E1'],
-      ['Foil (8%)', '+50 Chips when triggered', '#60A5FA'],
+      ['Foil (8%)', '+50 Base Points when triggered', '#2DD4BF'],
       ['Holographic (7%)', '+12 Mult when triggered', '#F472B6'],
       ['Polychrome (3%)', 'x1.5 Mult when triggered', '#C084FC'],
-      ['Negative (2%)', '+1 Max Card Slot (0 space)', '#38BDF8']
+      ['Negative (2%)', '+1 Max Dock Slot (0 space)', '#38BDF8']
     ];
     let ey = y + 102;
     for (const [name, txt, col] of edList) {
@@ -1125,32 +1169,30 @@ export function drawOverlayModal(ctx, state, uiCtx) {
       ctx.fillStyle = col;
       ctx.fillText(name, rx, ey);
       ctx.font = '600 12.5px ui-sans-serif, system-ui, sans-serif';
-      ctx.fillStyle = '#D1E0E8';
+      ctx.fillStyle = '#DDD6FE';
       ctx.fillText(txt, rx, ey + 19);
       ey += 48;
     }
 
-    // Pro Tips box
     drawBevelPanel(ctx, rx, ey + 10, 308, 134, {
-      fill: '#13211C', border: '#275948', lip: 2, r: 7
+      fill: '#18122B', border: COLORS.railBorderBright, lip: 2, r: 8
     });
     ctx.font = '800 12.5px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = COLORS.brassBright;
-    ctx.fillText('STRATEGY TIPS', rx + 14, ey + 24);
+    ctx.fillText('PARLOR STRATEGY TIPS', rx + 14, ey + 24);
     ctx.font = '600 12px ui-sans-serif, system-ui, sans-serif';
-    ctx.fillStyle = '#CFE3DA';
+    ctx.fillStyle = '#EDE9FE';
     const tips = [
       '• Place +Mult cards LEFT of xMult cards.',
-      '• Keep $25 banked for max +$5 Interest.',
+      '• Keep $25 in Treasury for max +$5 Interest.',
       '• Reroll keeps selected dice locked.',
-      '• Every 3rd stage has a Boss modifier.'
+      '• Every 3rd chapter has a Boss Curse.'
     ];
     tips.forEach((t, i) => ctx.fillText(t, rx + 14, ey + 48 + i * 21));
 
-    // Footer shortcut line
     ctx.textAlign = 'center';
     ctx.font = '600 12px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText('Shortcuts: Keys 1–5 Toggle Dice · Space Play · R Reroll · C Clear · Esc Close', x + w / 2, y + h - 32);
+    ctx.fillText('Shortcuts: Keys 1–5 Toggle Dice · Space Score · R Reroll · C Unlock · Esc Close', x + w / 2, y + h - 32);
   }
 }

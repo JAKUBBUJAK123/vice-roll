@@ -1,35 +1,56 @@
 export const COLORS = {
-  feltCenter: '#0F3D2D',
-  feltMid: '#0A291F',
-  feltEdge: '#04120D',
-  railBg: '#0E171E',
-  railPanel: '#14212B',
-  railBorder: '#284050',
-  railBorderBright: '#3E6075',
-  brass: '#D9A441',
-  brassBright: '#F6CA65',
-  ivory: '#F7F3E8',
-  ivoryShade: '#D7CEB8',
-  ivoryDeep: '#B3A78E',
-  chipsBlue: '#2563EB',
-  chipsLight: '#60A5FA',
-  chipsDark: '#1E3A8A',
-  multRed: '#DC2626',
-  multLight: '#F87171',
-  multDark: '#7F1D1D',
-  gold: '#F59E0B',
-  goldLight: '#FDE047',
+  // Deep Midnight Velvet / Art-Deco Parlor Table
+  feltCenter: '#1E1136',
+  feltMid: '#120924',
+  feltEdge: '#070310',
+
+  // Structural Panels & Art-Deco Trim
+  railBg: '#110D1D',
+  railPanel: '#1A142B',
+  railBorder: '#352A4F',
+  railBorderBright: '#584680',
+
+  // Antique Brass & Champagne Accents
+  brass: '#D4A359',
+  brassBright: '#F5CD79',
+
+  // Ivory & Bone Game Pieces
+  ivory: '#FAF6EE',
+  ivoryShade: '#DFD5C3',
+  ivoryDeep: '#B5A68E',
+
+  // Base Points (Teal / Jade) — distinct from Balatro blue chips
+  chipsBlue: '#0D9488',
+  chipsLight: '#2DD4BF',
+  chipsDark: '#115E59',
+
+  // Multiplier (Warm Amber-Flame / Magenta-Coral) — distinct from Balatro red mult
+  multRed: '#E11D48',
+  multLight: '#FB7185',
+  multDark: '#881337',
+
+  // Gold & Currency
+  gold: '#EAB308',
+  goldLight: '#FEF08A',
+
+  // Success / Clear Accent
   emerald: '#10B981',
   emeraldDark: '#065F46',
-  textMain: '#F3F7F5',
-  textMuted: '#8CA3B0',
-  textDim: '#5B7280',
-  suitSpades: '#182230',
-  suitHearts: '#D62839',
-  suitDiamonds: '#E85D04',
-  suitClubs: '#0E7C66',
-  negBg: '#101424',
-  negBorder: '#7C3AED',
+
+  // Typography
+  textMain: '#F8F5FF',
+  textMuted: '#A398B8',
+  textDim: '#6B5E82',
+
+  // Suit Colors
+  suitSpades: '#1E1B2E',
+  suitHearts: '#E11D48',
+  suitDiamonds: '#D97706',
+  suitClubs: '#0D9488',
+
+  // Negative Edition
+  negBg: '#0D0B18',
+  negBorder: '#A855F7',
   negSpades: '#38BDF8',
   negHearts: '#F472B6',
   negDiamonds: '#FBBF24',
