@@ -1,7 +1,7 @@
-import { COLORS } from './config/colors.js';
-import { EDITIONS } from './config/editions.js';
-import { CARD_BY_ID } from './config/cards.js';
-import { DICE_SIDES, DICE_LAYOUT, getDicePipCoords } from './config/dices.js';
+import { COLORS } from '../config/colors.js';
+import { EDITIONS } from '../config/editions.js';
+import { CARD_BY_ID } from '../config/cards.js';
+import { DICE_SIDES, DICE_LAYOUT, getDicePipCoords } from '../config/dices.js';
 
 export function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));
