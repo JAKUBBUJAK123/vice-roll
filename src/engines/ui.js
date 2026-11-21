@@ -9,6 +9,7 @@ import {
   tracePixelRect,
   drawBevelPanel,
   drawSuitIcon,
+  drawGemstoneIcon,
   wrapLines,
   getSuitColor,
   drawDie,
@@ -961,7 +962,7 @@ export function drawShopArena(ctx, state, uiCtx) {
   });
 
   // -------------------------------------------------------------------------
-  // 3. RIGHT SECTION: DICE WORKSHOP (2 Consumables, $4 each) + BAZAAR ACTIONS
+  // 3. RIGHT SECTION: DICE WORKSHOP (2 Gemstone Upgrades, $4 each) + BAZAAR ACTIONS
   // -------------------------------------------------------------------------
   const wx = 812, wy = y + 44, ww = 232, wh = 304;
   drawBevelPanel(ctx, wx, wy, ww, wh, {
@@ -1003,31 +1004,31 @@ export function drawShopArena(ctx, state, uiCtx) {
       continue;
     }
 
+    drawGemstoneIcon(ctx, upg.id, ux + 24, uy + 38, 15, state.time);
+
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.font = '800 13px ui-sans-serif, system-ui, sans-serif';
+    ctx.font = '800 12.5px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = COLORS.textMain;
-    ctx.fillText(upg.name, ux + 10, uy + 9);
+    ctx.fillText(upg.name, ux + 44, uy + 9);
 
-    ctx.textAlign = 'right';
-    ctx.font = '800 10px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.font = '800 9.5px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = upg.color;
-    ctx.fillText(upg.tag, ux + uw - 10, uy + 11);
+    ctx.fillText(upg.tag, ux + 44, uy + 25);
 
-    ctx.textAlign = 'left';
-    ctx.font = '600 10.5px ui-sans-serif, system-ui, sans-serif';
+    ctx.font = '600 10px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = COLORS.textMuted;
-    const uLines = wrapLines(ctx, upg.desc, uw - 20);
+    const uLines = wrapLines(ctx, upg.desc, uw - 52);
     uLines.slice(0, 2).forEach((ln, li) => {
-      ctx.fillText(ln, ux + 10, uy + 30 + li * 14);
+      ctx.fillText(ln, ux + 44, uy + 42 + li * 13);
     });
 
     const canAffordU = state.money >= upg.price && !state.modal;
-    registerButton(ctx, state, `shop_workshop_${i}`, ux + 10, uy + uh - 36, uw - 20, 28, `FORGE FACE $${upg.price}`, {
+    registerButton(ctx, state, `shop_workshop_${i}`, ux + 10, uy + uh - 34, uw - 20, 26, `FORGE FACE $${upg.price}`, {
       fill: canAffordU ? '#0369A1' : '#1B162A',
       hoverFill: '#0284C7',
       border: canAffordU ? '#7DD3FC' : COLORS.railBorder,
-      fontSize: 11.5,
+      fontSize: 11,
       lip: 2,
       disabled: !canAffordU,
       onClick: () => openWorkshopModal(i)
@@ -1358,15 +1359,17 @@ export function drawOverlayModal(ctx, state, uiCtx) {
       glow: 'rgba(56, 189, 248, 0.25)'
     });
 
+    drawGemstoneIcon(ctx, upgrade.id, x + 48, y + 48, 22, state.time);
+
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.font = '900 24px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = upgrade.color;
-    ctx.fillText(`⚒ DICE WORKSHOP: ${upgrade.name.toUpperCase()} ($${upgrade.price})`, x + 32, y + 24);
+    ctx.fillText(`DICE WORKSHOP: ${upgrade.name.toUpperCase()} ($${upgrade.price})`, x + 82, y + 24);
 
     ctx.font = '600 13.5px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = COLORS.textMain;
-    ctx.fillText(upgrade.desc, x + 32, y + 56);
+    ctx.fillText(upgrade.desc, x + 82, y + 56);
 
     registerButton(ctx, state, 'workshop_cancel', x + w - 132, y + 22, 100, 38, 'CANCEL', {
       fill: COLORS.railPanel, hoverFill: '#2D224A', fontSize: 13,
@@ -1425,10 +1428,8 @@ export function drawOverlayModal(ctx, state, uiCtx) {
       ctx.fillStyle = COLORS.textMuted;
       ctx.fillText(`FACE #${fIdx + 1}`, fx + cardW / 2, faceY + 10);
 
-      // Draw mini die face preview
       drawDieFaceMini(ctx, face, fx + cardW / 2, faceY + 62, 58, { hovered: fHover });
 
-      // Current value & mod status
       ctx.font = '800 11.5px ui-sans-serif, system-ui, sans-serif';
       ctx.fillStyle = COLORS.textMain;
       ctx.fillText(`Value: ${face.value}`, fx + cardW / 2, faceY + 100);
@@ -1451,7 +1452,7 @@ export function drawOverlayModal(ctx, state, uiCtx) {
     ctx.font = '600 11.5px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = COLORS.textMuted;
     ctx.fillText(
-      'Tip: Pip Forger (+1 Value) stacks with existing Inlays; applying a new Inlay replaces the face’s current Inlay.',
+      'Tip: Amber Stone (+1 Value) stacks with existing Inlays; applying a new Inlay replaces the face’s current Inlay.',
       x + w / 2,
       y + h - 32
     );
@@ -1539,12 +1540,12 @@ export function drawOverlayModal(ctx, state, uiCtx) {
     ctx.fillText('DICE WORKSHOP UPGRADES', rx, y + 64);
 
     const upgList = [
-      ['Pip Forger (+1 Val)', 'Permanently increases face value by +1 (7+)', '#F5CD79'],
-      ['Ruby Inlay (+15M)', 'Triggers +15 Mult when face is scored', '#FB7185'],
-      ['Sapphire Inlay (+50C)', 'Triggers +50 Base Points when scored', '#38BDF8'],
-      ['Gold Leaf (+$3)', 'Grants +$3 immediately when scored', '#FEF08A'],
-      ['Glass Face (x2M)', 'x2 Mult when scored (25% shatter chance)', '#A5F3FC'],
-      ['Wild Face (★Any)', 'Counts as whichever value maximizes hand', '#E879F9']
+      ['Amber Stone (+1 Val)', 'Permanently increases face value by +1 (7+)', '#F5CD79'],
+      ['Ruby Stone (+15M)', 'Triggers +15 Mult when face is scored', '#FB7185'],
+      ['Sapphire Stone (+50C)', 'Triggers +50 Base Points when scored', '#38BDF8'],
+      ['Topaz Stone (+$3)', 'Grants +$3 immediately when scored', '#FEF08A'],
+      ['Emerald Stone (x2M)', 'x2 Mult when scored (25% shatter chance)', '#A5F3FC'],
+      ['Amethyst Stone (★Any)', 'Counts as whichever value maximizes hand', '#E879F9']
     ];
     let ey = y + 88;
     for (const [name, txt, col] of upgList) {

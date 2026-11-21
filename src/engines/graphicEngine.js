@@ -283,6 +283,250 @@ export function drawSuitIcon(ctx, suit, cx, cy, size, color) {
   ctx.restore();
 }
 
+// Crisp procedural faceted gemstone illustrations for Dice Workshop stone cards
+export function drawGemstoneIcon(ctx, upgradeId, cx, cy, size, time = 0) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  const s = size;
+  const glint = 0.5 + 0.5 * Math.sin(time * 3.0 + cx * 0.05);
+
+  const palettes = {
+    PIP_FORGER: { // Amber Stone
+      outer: '#92400E',
+      mid: '#D97706',
+      light: '#FDE68A',
+      table: '#F59E0B',
+      glow: 'rgba(245, 158, 11, 0.38)',
+      shape: 'hex'
+    },
+    RUBY_INLAY: { // Ruby Stone
+      outer: '#881337',
+      mid: '#E11D48',
+      light: '#FECDD3',
+      table: '#FB7185',
+      glow: 'rgba(225, 29, 72, 0.42)',
+      shape: 'cushion'
+    },
+    SAPPHIRE_INLAY: { // Sapphire Stone
+      outer: '#0C4A6E',
+      mid: '#0284C7',
+      light: '#BAE6FD',
+      table: '#38BDF8',
+      glow: 'rgba(56, 189, 248, 0.42)',
+      shape: 'marquise'
+    },
+    GOLD_LEAF: { // Topaz Stone
+      outer: '#854D0E',
+      mid: '#EAB308',
+      light: '#FEF9C3',
+      table: '#FACC15',
+      glow: 'rgba(250, 204, 21, 0.40)',
+      shape: 'emerald'
+    },
+    GLASS_FACE: { // Emerald Stone
+      outer: '#064E3B',
+      mid: '#10B981',
+      light: '#A7F3D0',
+      table: '#34D399',
+      glow: 'rgba(16, 185, 129, 0.42)',
+      shape: 'emerald'
+    },
+    WILD_FACE: { // Amethyst Stone
+      outer: '#581C87',
+      mid: '#A855F7',
+      light: '#F5D0FE',
+      table: '#E879F9',
+      glow: 'rgba(192, 132, 252, 0.45)',
+      shape: 'crystal'
+    }
+  };
+
+  const p = palettes[upgradeId] || palettes.WILD_FACE;
+
+  // Soft ambient gem aura
+  const aura = ctx.createRadialGradient(0, 0, 2, 0, 0, s * 1.45);
+  aura.addColorStop(0, p.glow);
+  aura.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = aura;
+  ctx.beginPath();
+  ctx.arc(0, 0, s * 1.45, 0, Math.PI * 2);
+  ctx.fill();
+
+  const tracePoly = (pts) => {
+    ctx.beginPath();
+    pts.forEach(([px, py], i) => (i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py)));
+    ctx.closePath();
+  };
+
+  if (p.shape === 'emerald') {
+    const w = s * 0.78, h = s * 0.98, c = s * 0.28;
+    const outerPts = [
+      [-w + c, -h], [w - c, -h], [w, -h + c], [w, h - c],
+      [w - c, h], [-w + c, h], [-w, h - c], [-w, -h + c]
+    ];
+    const innerPts = [
+      [-w * 0.52, -h * 0.58], [w * 0.52, -h * 0.58],
+      [w * 0.52, h * 0.58], [-w * 0.52, h * 0.58]
+    ];
+
+    const grad = ctx.createLinearGradient(-w, -h, w, h);
+    grad.addColorStop(0, p.light);
+    grad.addColorStop(0.45, p.mid);
+    grad.addColorStop(1, p.outer);
+    tracePoly(outerPts);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = p.light;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(outerPts[i * 2][0], outerPts[i * 2][1]);
+      ctx.lineTo(innerPts[i][0], innerPts[i][1]);
+      ctx.moveTo(outerPts[i * 2 + 1][0], outerPts[i * 2 + 1][1]);
+      ctx.lineTo(innerPts[i][0], innerPts[i][1]);
+      ctx.stroke();
+    }
+
+    tracePoly(innerPts);
+    ctx.fillStyle = p.table;
+    ctx.fill();
+    ctx.strokeStyle = p.light;
+    ctx.stroke();
+  } else if (p.shape === 'marquise') {
+    const outerPts = [[0, -s * 1.05], [s * 0.78, 0], [0, s * 1.05], [-s * 0.78, 0]];
+    const innerPts = [[0, -s * 0.56], [s * 0.42, 0], [0, s * 0.56], [-s * 0.42, 0]];
+
+    const grad = ctx.createLinearGradient(-s, -s, s, s);
+    grad.addColorStop(0, p.light);
+    grad.addColorStop(0.5, p.mid);
+    grad.addColorStop(1, p.outer);
+    tracePoly(outerPts);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = p.light;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(outerPts[i][0], outerPts[i][1]);
+      ctx.lineTo(innerPts[i][0], innerPts[i][1]);
+      ctx.stroke();
+    }
+    tracePoly(innerPts);
+    ctx.fillStyle = p.table;
+    ctx.fill();
+    ctx.stroke();
+  } else if (p.shape === 'cushion') {
+    const r = s * 0.88;
+    const outerPts = [
+      [-r * 0.55, -r], [r * 0.55, -r], [r, -r * 0.55], [r, r * 0.55],
+      [r * 0.55, r], [-r * 0.55, r], [-r, r * 0.55], [-r, -r * 0.55]
+    ];
+    const innerPts = [
+      [0, -r * 0.52], [r * 0.52, 0], [0, r * 0.52], [-r * 0.52, 0]
+    ];
+    const grad = ctx.createRadialGradient(-r * 0.25, -r * 0.25, 2, 0, 0, r * 1.1);
+    grad.addColorStop(0, p.light);
+    grad.addColorStop(0.45, p.mid);
+    grad.addColorStop(1, p.outer);
+    tracePoly(outerPts);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = p.light;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.42)';
+    ctx.lineWidth = 1;
+    outerPts.forEach(([ox, oy], idx) => {
+      const [ix, iy] = innerPts[Math.floor(idx / 2) % 4];
+      ctx.beginPath();
+      ctx.moveTo(ox, oy);
+      ctx.lineTo(ix, iy);
+      ctx.stroke();
+    });
+    tracePoly(innerPts);
+    ctx.fillStyle = p.table;
+    ctx.fill();
+    ctx.stroke();
+  } else if (p.shape === 'hex') {
+    const pts = [];
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI) / 3 - Math.PI / 6;
+      pts.push([Math.cos(a) * s * 0.9, Math.sin(a) * s * 0.9]);
+    }
+    const grad = ctx.createRadialGradient(-s * 0.2, -s * 0.25, 2, 0, 0, s);
+    grad.addColorStop(0, p.light);
+    grad.addColorStop(0.55, p.table);
+    grad.addColorStop(1, p.outer);
+    tracePoly(pts);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = p.light;
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(254, 243, 199, 0.65)';
+    ctx.beginPath();
+    ctx.arc(-s * 0.2, -s * 0.15, s * 0.12, 0, Math.PI * 2);
+    ctx.arc(s * 0.22, s * 0.18, s * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    const mainPts = [
+      [0, -s * 1.05], [s * 0.65, -s * 0.42], [s * 0.56, s * 0.72],
+      [0, s * 1.02], [-s * 0.56, s * 0.72], [-s * 0.65, -s * 0.42]
+    ];
+    const grad = ctx.createLinearGradient(-s, -s, s, s);
+    grad.addColorStop(0, p.light);
+    grad.addColorStop(0.45, p.mid);
+    grad.addColorStop(1, p.outer);
+    tracePoly(mainPts);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = p.light;
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 1.05);
+    ctx.lineTo(0, s * 1.02);
+    ctx.moveTo(-s * 0.65, -s * 0.42);
+    ctx.lineTo(0, -s * 0.12);
+    ctx.lineTo(s * 0.65, -s * 0.42);
+    ctx.moveTo(-s * 0.56, s * 0.72);
+    ctx.lineTo(0, s * 0.25);
+    ctx.lineTo(s * 0.56, s * 0.72);
+    ctx.stroke();
+  }
+
+  const spX = -s * 0.36;
+  const spY = -s * 0.42;
+  const arm = s * (0.22 + glint * 0.18);
+  ctx.fillStyle = `rgba(255, 255, 255, ${0.55 + glint * 0.45})`;
+  ctx.beginPath();
+  ctx.moveTo(spX, spY - arm);
+  ctx.lineTo(spX + 1.5, spY - 1.5);
+  ctx.lineTo(spX + arm, spY);
+  ctx.lineTo(spX + 1.5, spY + 1.5);
+  ctx.lineTo(spX, spY + arm);
+  ctx.lineTo(spX - 1.5, spY + 1.5);
+  ctx.lineTo(spX - arm, spY);
+  ctx.lineTo(spX - 1.5, spY - 1.5);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+}
+
 export function wrapLines(ctx, text, maxW) {
   const words = text.split(' ');
   const lines = [];

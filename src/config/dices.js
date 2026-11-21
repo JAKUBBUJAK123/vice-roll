@@ -24,7 +24,7 @@ export const TITLE_DICE = [
 export const FACE_MOD_META = {
   mult: {
     id: 'mult',
-    name: 'Ruby Inlay',
+    name: 'Ruby Stone',
     short: 'RUBY',
     badge: '+15M',
     color: '#FB7185',
@@ -34,7 +34,7 @@ export const FACE_MOD_META = {
   },
   chips: {
     id: 'chips',
-    name: 'Sapphire Inlay',
+    name: 'Sapphire Stone',
     short: 'SAPPHIRE',
     badge: '+50C',
     color: '#38BDF8',
@@ -44,8 +44,8 @@ export const FACE_MOD_META = {
   },
   gold: {
     id: 'gold',
-    name: 'Gold Leaf',
-    short: 'GOLD',
+    name: 'Topaz Stone',
+    short: 'TOPAZ',
     badge: '+$3',
     color: '#FEF08A',
     border: '#EAB308',
@@ -54,8 +54,8 @@ export const FACE_MOD_META = {
   },
   glass: {
     id: 'glass',
-    name: 'Glass Face',
-    short: 'GLASS',
+    name: 'Emerald Stone',
+    short: 'Emerald',
     badge: 'x2M',
     color: '#A5F3FC',
     border: '#06B6D4',
@@ -64,8 +64,8 @@ export const FACE_MOD_META = {
   },
   wild: {
     id: 'wild',
-    name: 'Wild Face',
-    short: 'WILD',
+    name: 'Amethyst Stone',
+    short: 'Amethyst',
     badge: '★WILD',
     color: '#E879F9',
     border: '#C026D3',
@@ -77,7 +77,7 @@ export const FACE_MOD_META = {
 export const DICE_UPGRADE_CATALOG = [
   {
     id: 'PIP_FORGER',
-    name: 'Pip Forger',
+    name: 'Amber Stone',
     tag: '+1 VALUE',
     price: WORKSHOP_UPGRADE_COST,
     type: 'value_add',
@@ -87,7 +87,7 @@ export const DICE_UPGRADE_CATALOG = [
   },
   {
     id: 'RUBY_INLAY',
-    name: 'Ruby Inlay',
+    name: 'Ruby Stone',
     tag: '+15 MULT',
     price: WORKSHOP_UPGRADE_COST,
     type: 'mod',
@@ -97,7 +97,7 @@ export const DICE_UPGRADE_CATALOG = [
   },
   {
     id: 'SAPPHIRE_INLAY',
-    name: 'Sapphire Inlay',
+    name: 'Sapphire Stone',
     tag: '+50 BASE',
     price: WORKSHOP_UPGRADE_COST,
     type: 'mod',
@@ -107,17 +107,17 @@ export const DICE_UPGRADE_CATALOG = [
   },
   {
     id: 'GOLD_LEAF',
-    name: 'Gold Leaf',
+    name: 'Topaz Stone',
     tag: '+$3 GOLD',
     price: WORKSHOP_UPGRADE_COST,
     type: 'mod',
     mod: 'gold',
     color: '#FEF08A',
-    desc: 'Gilds a die face with Gold Leaf: grants +$3 whenever scored.'
+    desc: 'Gilds a die face with Topaz: grants +$3 whenever scored.'
   },
   {
     id: 'GLASS_FACE',
-    name: 'Glass Face',
+    name: 'Emerald Stone',
     tag: 'x2 MULT',
     price: WORKSHOP_UPGRADE_COST,
     type: 'mod',
@@ -127,7 +127,7 @@ export const DICE_UPGRADE_CATALOG = [
   },
   {
     id: 'WILD_FACE',
-    name: 'Wild Face',
+    name: 'Amethyst Stone',
     tag: '★ ANY VAL',
     price: WORKSHOP_UPGRADE_COST,
     type: 'mod',
