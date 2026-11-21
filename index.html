@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Velvet Roll — Roguelike Dice & Card Deckbuilder</title>
-  <meta name="description" content="A Balatro-inspired roguelike dice-and-card deckbuilder built in a single self-contained HTML5 Canvas file with tactile pixel-vector visuals, 18 modifier cards, 5 editions, and procedural Web Audio." />
+  <meta name="description" content="An Art-Deco roguelike dice-and-card deckbuilder built with HTML5 Canvas, 18 Arcana modifier cards, 5 editions, Vouchers, custom Dice Face Upgrades, and procedural Web Audio." />
   <meta property="og:title" content="Velvet Roll — Roguelike Dice & Card Deckbuilder" />
-  <meta property="og:description" content="Roll 5 dice, sculpt 3-dice scoring hands, stack 18 playing-card modifiers across 5 rare editions, and conquer a 9-stage roguelike run plus Endless Mode." />
+  <meta property="og:description" content="Roll custom-forged dice, sculpt scoring combos, redeem Vouchers, stack 18 Arcana playing-card modifiers across 5 rare editions, and conquer a 9-chapter run plus Endless Mode." />
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="stylesheet" href="./src/index.css"/>
@@ -18,9 +18,16 @@ import { COLORS } from './src/config/colors.js';
 import { EDITIONS } from './src/config/editions.js';
 import { HANDS } from './src/config/hands.js';
 import { CARD_CATALOG, CARD_BY_ID } from './src/config/cards.js';
+import { VOUCHER_COST, VOUCHER_CATALOG } from './src/config/vouchers.js';
 import {
+  DICE_COUNT,
+  MAX_DICE_COUNT,
+  DICE_SIDES,
   MAX_SELECT_DICE,
   TITLE_DICE,
+  FACE_MOD_META,
+  DICE_UPGRADE_CATALOG,
+  createPoolDie,
   createFreshDice
 } from './src/config/dices.js';
 import {
@@ -41,6 +48,7 @@ import {
   drawLeftHUD,
   drawModifierCardTray,
   drawPlayArena,
+  drawDieInspectorTooltip,
   drawCashOutPanel,
   drawShopArena,
   drawCardTooltip,
@@ -70,8 +78,8 @@ import {
 
   const STAGE_TARGETS = [
     300, 800, 2000,
-    4500, 10000, 22000,
-    48000, 105000, 240000
+    5500, 14000, 32000,
+    75000, 175000, 420000
   ];
 
   const BOSS_MODIFIERS = [
@@ -79,19 +87,19 @@ import {
       id: 'EVEN_ZERO',
       name: 'The Even Drain',
       short: 'Even dice give 0 Chips',
-      desc: 'All even dice (2, 4, 6) contribute 0 pip Chips when scored.'
+      desc: 'All even dice (2, 4, 6, 8...) contribute 0 pip Chips when scored.'
     },
     {
       id: 'TWO_REROLLS',
       name: 'The Tight Grip',
-      short: 'Only 2 Rerolls allowed',
-      desc: 'Start this stage with 2 Rerolls instead of 3.'
+      short: '-1 Reroll this chapter',
+      desc: 'Start this chapter with 1 fewer Reroll than usual.'
     },
     {
       id: 'ODD_ZERO',
       name: 'The Odd Tax',
       short: 'Odd dice give 0 Chips',
-      desc: 'All odd dice (1, 3, 5) contribute 0 pip Chips when scored.'
+      desc: 'All odd dice (1, 3, 5, 7...) contribute 0 pip Chips when scored.'
     },
     {
       id: 'DISABLE_FIRST',
@@ -102,19 +110,19 @@ import {
     {
       id: 'THREE_HANDS',
       name: 'The Short Stack',
-      short: 'Only 3 Hands allowed',
-      desc: 'Start this stage with 3 Hands instead of 4.'
+      short: '-1 Hand this chapter',
+      desc: 'Start this chapter with 1 fewer Hand than usual.'
     },
     {
       id: 'MIN_TWO_DICE',
       name: 'The Heavy Felt',
       short: 'Must play at least 2 dice',
-      desc: 'Single-die hands are blocked; select 2 or 3 dice to score.'
+      desc: 'Single-die hands are blocked; select at least 2 dice to score.'
     }
   ];
 
   // =========================================================================
-  // 3. HELPER FUNCTIONS (HAND EVAL, EDITIONS, PERSISTENCE, DRAWING)
+  // 2. HELPER FUNCTIONS (HAND EVAL WITH WILD RESOLUTION, EDITIONS, PERSISTENCE)
   // =========================================================================
   let nextUid = 1;
 
@@ -143,7 +151,7 @@ import {
     if (stage <= STAGE_TARGETS.length) return STAGE_TARGETS[stage - 1];
     let v = STAGE_TARGETS[STAGE_TARGETS.length - 1];
     for (let s = STAGE_TARGETS.length + 1; s <= stage; s++) {
-      v = Math.round((v * 2.25) / 100) * 100;
+      v = Math.round((v * 2.35) / 100) * 100;
     }
     return v;
   }
@@ -160,26 +168,102 @@ import {
     return 3;
   }
 
-  function evaluateHand(diceValues) {
+  function hasConsecutiveRun(values, runLen) {
+    const uniq = [...new Set(values)].sort((a, b) => a - b);
+    if (uniq.length < runLen) return false;
+    let streak = 1;
+    for (let i = 1; i < uniq.length; i++) {
+      if (uniq[i] === uniq[i - 1] + 1) {
+        streak++;
+        if (streak >= runLen) return true;
+      } else {
+        streak = 1;
+      }
+    }
+    return false;
+  }
+
+  // Concrete 1–4 dice hand evaluation
+  function evaluateConcreteValues(diceValues) {
     if (!diceValues || diceValues.length === 0) return null;
     const sorted = [...diceValues].sort((a, b) => a - b);
     const counts = {};
     for (const v of sorted) counts[v] = (counts[v] || 0) + 1;
     const freqs = Object.values(counts).sort((a, b) => b - a);
+    const countSixOrHigher = sorted.filter(v => v >= 6).length;
 
-    if (sorted.length === 3 && sorted[0] === 6 && sorted[1] === 6 && sorted[2] === 6) {
+    if (freqs[0] >= 4) {
+      return HANDS.FOUR_OF_A_KIND;
+    }
+    if (countSixOrHigher >= 3 && freqs[0] >= 3 && sorted.filter(v => v === sorted[sorted.length - 1]).length >= 3 && sorted[sorted.length - 1] >= 6) {
       return HANDS.PERFECT_18;
+    }
+    if (sorted.length >= 4 && hasConsecutiveRun(sorted, 4)) {
+      return HANDS.LARGE_STRAIGHT;
     }
     if (freqs[0] >= 3) {
       return HANDS.THREE_OF_A_KIND;
     }
-    if (sorted.length === 3 && sorted[1] === sorted[0] + 1 && sorted[2] === sorted[1] + 1) {
+    if (freqs[0] >= 2 && (freqs[1] || 0) >= 2) {
+      return HANDS.TWO_PAIR;
+    }
+    if (sorted.length >= 3 && hasConsecutiveRun(sorted, 3)) {
       return HANDS.SMALL_STRAIGHT;
     }
     if (freqs[0] >= 2) {
       return HANDS.PAIR;
     }
     return HANDS.HIGH_DIE;
+  }
+
+  function resolveDiceAndEvaluateHand(selectedDice) {
+    if (!selectedDice || selectedDice.length === 0) return null;
+
+    const wildIndices = [];
+    const baseValues = selectedDice.map((d, idx) => {
+      if (d.mod === 'wild') {
+        wildIndices.push(idx);
+      }
+      return d.value;
+    });
+
+    if (wildIndices.length === 0) {
+      for (const d of selectedDice) d.effectiveValue = d.value;
+      return { hand: evaluateConcreteValues(baseValues), resolvedValues: baseValues };
+    }
+
+    const maxTableVal = Math.max(6, ...baseValues);
+    const candidates = [];
+    for (let v = 1; v <= maxTableVal; v++) candidates.push(v);
+
+    let bestHand = null;
+    let bestScoreMetric = -1;
+    let bestResolved = [...baseValues];
+
+    function search(wIdx, currentVals) {
+      if (wIdx >= wildIndices.length) {
+        const h = evaluateConcreteValues(currentVals);
+        const pipSum = currentVals.reduce((a, b) => a + b, 0);
+        const metric = (h.chips * h.mult) * 1000 + pipSum;
+        if (metric > bestScoreMetric) {
+          bestScoreMetric = metric;
+          bestHand = h;
+          bestResolved = [...currentVals];
+        }
+        return;
+      }
+      const targetPos = wildIndices[wIdx];
+      for (const cand of candidates) {
+        currentVals[targetPos] = cand;
+        search(wIdx + 1, currentVals);
+      }
+    }
+
+    search(0, [...baseValues]);
+    selectedDice.forEach((d, idx) => {
+      d.effectiveValue = bestResolved[idx];
+    });
+    return { hand: bestHand, resolvedValues: bestResolved };
   }
 
   function rollEdition() {
@@ -205,7 +289,6 @@ import {
       price,
       sellValue,
       scalingBonus: 0,
-      // Visual state
       x: 0, y: 0,
       targetX: 0, targetY: 0,
       scale: 1,
@@ -217,14 +300,14 @@ import {
   }
 
   // =========================================================================
-  // 4. GAME STATE & ENGINE
+  // 3. GAME STATE & ENGINE
   // =========================================================================
   const canvas = document.getElementById('game-canvas');
   const ctx = canvas.getContext('2d');
 
   const state = {
     mode: 'TITLE_MENU', // TITLE_MENU | PLAYING | SCORING | CASH_OUT | SHOP | VICTORY | GAME_OVER
-    modal: null,        // null | 'PAUSE' | 'GUIDE'
+    modal: null,        // null | 'PAUSE' | 'GUIDE' | 'WORKSHOP'
     crtEnabled: true,
     time: 0,
     stats: loadStats(),
@@ -252,6 +335,15 @@ import {
     totalMoneyEarned: 0,
     handsPlayedRun: 0,
 
+    // Vouchers & Custom Dice Pool
+    vouchers: {}, // { HEAVY_CUP: count, WIDE_GRIP: count, ... }
+    dicePool: [], // Array of pool dice, each with 6 face objects: { value, mod }
+    currentVoucherAnte: 0,
+    shopVoucher: null,
+    shopDiceUpgrades: [],
+    workshopTarget: null, // { shopIdx, upgrade }
+    workshopDieIdx: 0,
+
     // Live scoring display
     chips: 0,
     mult: 0,
@@ -263,7 +355,7 @@ import {
     scoringStepCount: 0,
     pendingAfterScore: null,
 
-    // Dice (5 d6)
+    // Active rolled dice on the table
     dice: [],
 
     // Cards
@@ -279,10 +371,11 @@ import {
     // Interaction state
     mouseX: -999,
     mouseY: -999,
-    hoveredCard: null, // { zone: 'active' | 'shop', card, idx, rect }
+    hoveredCard: null,
+    hoveredDieIdx: -1,
     focusedActiveUid: null,
-    drag: null, // { card, fromIdx, startX, startY, curX, curY, active }
-    buttons: [], // Interactive buttons rebuilt each frame for exact hit-testing
+    drag: null,
+    buttons: [],
     hoverButtonId: null,
     noticeText: '',
     noticeTimer: 0,
@@ -295,12 +388,34 @@ import {
     scoreTickAccum: 0
   };
 
+  function getVoucherStacks(id) {
+    return (state.vouchers && state.vouchers[id]) || 0;
+  }
+
+  function getMaxSelectDice() {
+    return MAX_SELECT_DICE + (getVoucherStacks('WIDE_GRIP') > 0 ? 1 : 0);
+  }
+
+  function getStageMaxHands() {
+    const base = BASE_HANDS + getVoucherStacks('EXTRA_SLEEVE');
+    return (state.activeBoss && state.activeBoss.id === 'THREE_HANDS') ? Math.max(1, base - 1) : base;
+  }
+
+  function getStageMaxRerolls() {
+    const base = BASE_REROLLS + getVoucherStacks('LOADED_WRIST');
+    return (state.activeBoss && state.activeBoss.id === 'TWO_REROLLS') ? Math.max(0, base - 1) : base;
+  }
+
+  function getBaseCardSlots() {
+    return BASE_MAX_SLOTS + getVoucherStacks('CARD_SHARK');
+  }
+
   function getMaxCardSlots() {
     let negs = 0;
     for (const c of state.activeCards) {
       if (c.edition === 'negative') negs++;
     }
-    return BASE_MAX_SLOTS + negs;
+    return getBaseCardSlots() + negs;
   }
 
   function getUsedCardSlots() {
@@ -309,6 +424,10 @@ import {
       if (c.edition !== 'negative') count++;
     }
     return count;
+  }
+
+  function getShopCardSlotCount() {
+    return 3 + (getVoucherStacks('VIP_PASS') > 0 ? 1 : 0);
   }
 
   function showNotice(text, dur = 1.6) {
@@ -328,7 +447,6 @@ import {
     engineSpawnParticles(state, x, y, count, palette, speedMin, speedMax);
   }
 
-  // Initialize decorative animated props for the Title Screen
   function initTitleBackdrop() {
     state.titleDice = TITLE_DICE.map(d => ({ ...d }));
     state.titleCards = [
@@ -341,7 +459,7 @@ import {
   }
 
   // =========================================================================
-  // 5. RUN & STAGE FLOW LOGIC
+  // 4. RUN & STAGE FLOW LOGIC
   // =========================================================================
   function startNewRun() {
     sfx.unlock();
@@ -349,6 +467,13 @@ import {
     state.stage = 1;
     state.endless = false;
     state.money = 4;
+    state.vouchers = {};
+    state.dicePool = Array.from({ length: DICE_COUNT }, (_, i) => createPoolDie(i));
+    state.currentVoucherAnte = 0;
+    state.shopVoucher = null;
+    state.shopDiceUpgrades = [];
+    state.workshopTarget = null;
+    state.workshopDieIdx = 0;
     state.activeCards = [];
     state.shopCards = [];
     state.usedBossIds = [];
@@ -371,6 +496,7 @@ import {
     state.scoringBanner = '';
     state.mode = 'PLAYING';
     state.modal = null;
+    state.workshopTarget = null;
     state.focusedActiveUid = null;
 
     // Assign Boss every 3rd stage
@@ -384,16 +510,16 @@ import {
       state.activeBoss = boss;
       state.usedBossIds.push(boss.id);
       sfx.bossIntro();
-      showNotice('BOSS BLIND: ' + boss.name + ' — ' + boss.short, 2.8);
+      showNotice('BOSS CURSE: ' + boss.name + ' — ' + boss.short, 2.8);
     } else {
       state.activeBoss = null;
     }
 
-    state.handsLeft = (state.activeBoss && state.activeBoss.id === 'THREE_HANDS') ? 3 : BASE_HANDS;
-    state.rerollsLeft = (state.activeBoss && state.activeBoss.id === 'TWO_REROLLS') ? 2 : BASE_REROLLS;
+    state.handsLeft = getStageMaxHands();
+    state.rerollsLeft = getStageMaxRerolls();
 
-    state.dice = createFreshDice();
-    sfx.diceRoll(5);
+    state.dice = createFreshDice(state.dicePool);
+    sfx.diceRoll(state.dice.length);
     updateLivePreview();
   }
 
@@ -402,7 +528,12 @@ import {
     sfx.diceRoll(indicesToRoll.length);
     for (let k = 0; k < indicesToRoll.length; k++) {
       const d = state.dice[indicesToRoll[k]];
-      d.value = 1 + Math.floor(Math.random() * 6);
+      const faceIdx = Math.floor(Math.random() * DICE_SIDES);
+      const face = d.faces[faceIdx];
+      d.faceIndex = faceIdx;
+      d.value = face.value;
+      d.mod = face.mod;
+      d.effectiveValue = face.value;
       d.y = d.targetY - 90 - Math.random() * 45;
       d.vy = -120 - Math.random() * 80;
       d.angle = (Math.random() - 0.5) * 1.6;
@@ -423,15 +554,17 @@ import {
     if (state.mode !== 'PLAYING' || state.modal) return;
     const d = state.dice[idx];
     if (!d) return;
+    const maxSelect = getMaxSelectDice();
     if (d.selected) {
       d.selected = false;
+      d.effectiveValue = d.value;
       d.scale = 0.92;
       sfx.dieSelect(false);
     } else {
       const curSelected = state.dice.filter(x => x.selected).length;
-      if (curSelected >= MAX_SELECT_DICE) {
+      if (curSelected >= maxSelect) {
         sfx.error();
-        showNotice('Maximum 3 dice per hand — deselect one first', 1.4);
+        showNotice(`Maximum ${maxSelect} dice per hand — deselect one first`, 1.4);
         d.scale = 0.9;
         return;
       }
@@ -448,6 +581,7 @@ import {
     for (const d of state.dice) {
       if (d.selected) {
         d.selected = false;
+        d.effectiveValue = d.value;
         changed = true;
       }
     }
@@ -461,7 +595,7 @@ import {
     if (state.mode !== 'PLAYING' || state.modal || isAnyDieTumbling()) return;
     if (state.rerollsLeft <= 0) {
       sfx.error();
-      showNotice('No Rerolls remaining this stage', 1.4);
+      showNotice('No Rerolls remaining this chapter', 1.4);
       return;
     }
     const unselected = [];
@@ -470,7 +604,7 @@ import {
     }
     if (unselected.length === 0) {
       sfx.error();
-      showNotice('Deselect at least one die to reroll', 1.4);
+      showNotice('Unlock at least one die to reroll', 1.4);
       return;
     }
     state.rerollsLeft--;
@@ -486,14 +620,14 @@ import {
       state.mult = 0;
       return;
     }
-    const hand = evaluateHand(selected.map(d => d.value));
+    const { hand } = resolveDiceAndEvaluateHand(selected);
     state.liveHandName = hand.name;
     state.chips = hand.chips;
     state.mult = hand.mult;
   }
 
   // =========================================================================
-  // 6. DETERMINISTIC SCORING PIPELINE (LEFT-TO-RIGHT CASCADE)
+  // 5. DETERMINISTIC SCORING PIPELINE (BASE -> DICE & FACE MODS -> CARDS)
   // =========================================================================
   function isDieDebuffedByBoss(val) {
     if (!state.activeBoss) return false;
@@ -509,9 +643,10 @@ import {
   function playSelectedHand() {
     if (state.mode !== 'PLAYING' || state.modal || isAnyDieTumbling()) return;
     const playedDice = state.dice.filter(d => d.selected);
+    const maxSelect = getMaxSelectDice();
     if (playedDice.length === 0) {
       sfx.error();
-      showNotice('Select 1 to 3 dice to play a hand', 1.5);
+      showNotice(`Select 1 to ${maxSelect} dice to score a hand`, 1.5);
       return;
     }
     if (state.activeBoss && state.activeBoss.id === 'MIN_TWO_DICE' && playedDice.length < 2) {
@@ -520,16 +655,23 @@ import {
       return;
     }
 
-    const hand = evaluateHand(playedDice.map(d => d.value));
+    const { hand } = resolveDiceAndEvaluateHand(playedDice);
     state.handsLeft--;
     state.handsPlayedRun++;
     state.mode = 'SCORING';
     state.focusedActiveUid = null;
     state.drag = null;
 
-    // Build deterministic scoring step timeline
+    // Create scoring proxies using resolved effectiveValue (so Wild faces count as their optimal value for cards too)
+    const playedProxies = playedDice.map(d => ({
+      id: d.id,
+      value: d.effectiveValue || d.value,
+      mod: d.mod,
+      dieRef: d
+    }));
+
     const steps = [];
-    const playedSum = playedDice.reduce((acc, d) => acc + d.value, 0);
+    const playedSum = playedProxies.reduce((acc, d) => acc + d.value, 0);
     const unplayedCount = state.dice.length - playedDice.length;
 
     // Step 0: Base hand ignition
@@ -549,43 +691,50 @@ import {
       if (def.retriggerSix) retriggerSixCards.push(inst);
     });
 
-    // Step 1: Score each played die (+ any retriggers)
-    const scoredDiceLog = [];
-    playedDice.forEach((die, idx) => {
-      const debuffed = isDieDebuffedByBoss(die.value);
-      scoredDiceLog.push(die);
+    // Helper to enqueue a die's pip scoring + its face mod trigger
+    function enqueueDieScoring(proxy, retriggerCard = null) {
+      const die = proxy.dieRef;
+      const scoredValue = proxy.value;
+      const debuffed = isDieDebuffedByBoss(scoredValue);
+
       steps.push({
         type: 'DIE_SCORE',
         die,
+        scoredValue,
         debuffed,
-        retriggerCard: null,
+        retriggerCard,
         duration: 0.28
       });
+
+      // Trigger face modification immediately after pip value if face has a mod
+      if (die.mod && die.mod !== 'wild') {
+        steps.push({
+          type: 'DIE_FACE_MOD',
+          die,
+          mod: die.mod,
+          duration: 0.32
+        });
+      }
+    }
+
+    // Step 1: Score each played die left-to-right (+ face mods + retriggers)
+    const scoredDiceLog = [];
+    playedProxies.forEach((proxy, idx) => {
+      scoredDiceLog.push(proxy);
+      enqueueDieScoring(proxy, null);
 
       // Retrigger first die via Jack of Clubs
       if (idx === 0) {
         for (const rc of retriggerFirstCards) {
-          scoredDiceLog.push(die);
-          steps.push({
-            type: 'DIE_SCORE',
-            die,
-            debuffed,
-            retriggerCard: rc,
-            duration: 0.34
-          });
+          scoredDiceLog.push(proxy);
+          enqueueDieScoring(proxy, rc);
         }
       }
       // Retrigger 6s via 6 of Spades
-      if (die.value === 6) {
+      if (proxy.value === 6) {
         for (const rc of retriggerSixCards) {
-          scoredDiceLog.push(die);
-          steps.push({
-            type: 'DIE_SCORE',
-            die,
-            debuffed,
-            retriggerCard: rc,
-            duration: 0.34
-          });
+          scoredDiceLog.push(proxy);
+          enqueueDieScoring(proxy, rc);
         }
       }
     });
@@ -593,7 +742,7 @@ import {
     // Step 2: Modifier cards left to right
     const evalCtx = {
       hand,
-      playedDice,
+      playedDice: playedProxies,
       scoredDice: scoredDiceLog,
       playedSum,
       unplayedCount,
@@ -688,6 +837,7 @@ import {
 
     if (step.type === 'DIE_SCORE') {
       const d = step.die;
+      const val = step.scoredValue;
       d.hop = 1;
       if (step.retriggerCard) {
         step.retriggerCard.bounce = 1;
@@ -699,18 +849,74 @@ import {
       if (step.debuffed) {
         d.flash = 1;
         d.flashColor = COLORS.multRed;
-        state.scoringBanner = state.activeBoss.name + ' blocked ' + d.value + '!';
-        spawnPopup(d.x, d.y - 68, '0 (Boss)', COLORS.multLight, 20);
+        state.scoringBanner = state.activeBoss.name + ' blocked ' + val + '!';
+        spawnPopup(d.x, d.y - 68, '0 (Curse)', COLORS.multLight, 20);
         sfx.scoreStep(state.scoringStepCount, 'debuff');
       } else {
-        state.chips += d.value;
+        state.chips += val;
         d.flash = 1;
         d.flashColor = COLORS.chipsLight;
         state.scoringStepCount++;
-        state.scoringBanner = 'Die ' + d.value + '  →  +' + d.value + ' Chips';
-        spawnPopup(d.x, d.y - 68, '+' + d.value, COLORS.chipsLight, 24);
+        const wildNote = d.mod === 'wild' ? ` (★Wild=${val})` : '';
+        state.scoringBanner = `Die #${d.id + 1}${wildNote}  →  +${val} Base`;
+        spawnPopup(d.x, d.y - 68, '+' + val, COLORS.chipsLight, 24);
         spawnParticles(d.x, d.y - 10, 8, [COLORS.chipsLight, '#FFFFFF'], 50, 140);
         sfx.scoreStep(state.scoringStepCount, 'chips');
+      }
+      return;
+    }
+
+    if (step.type === 'DIE_FACE_MOD') {
+      const d = step.die;
+      const mod = step.mod;
+      const mm = FACE_MOD_META[mod];
+      if (!mm) return;
+
+      d.hop = 1.15;
+      d.flash = 1;
+      d.flashColor = mm.color;
+      state.scoringStepCount++;
+
+      if (mod === 'mult') {
+        state.mult += 15;
+        state.scoringBanner = `Die #${d.id + 1} Ruby Inlay  →  +15 Mult`;
+        spawnPopup(d.x, d.y - 82, '+15 Mult', mm.color, 23);
+        spawnParticles(d.x, d.y - 15, 14, [mm.color, '#FFFFFF'], 70, 190);
+        sfx.scoreStep(state.scoringStepCount, 'mult');
+      } else if (mod === 'chips') {
+        state.chips += 50;
+        state.scoringBanner = `Die #${d.id + 1} Sapphire Inlay  →  +50 Base`;
+        spawnPopup(d.x, d.y - 82, '+50 Base', mm.color, 23);
+        spawnParticles(d.x, d.y - 15, 14, [mm.color, '#FFFFFF'], 70, 190);
+        sfx.scoreStep(state.scoringStepCount, 'chips');
+      } else if (mod === 'gold') {
+        state.money += 3;
+        state.totalMoneyEarned += 3;
+        state.scoringBanner = `Die #${d.id + 1} Gold Leaf  →  +$3`;
+        spawnPopup(d.x, d.y - 82, '+$3', mm.color, 24);
+        spawnPopup(985, 65, '+$3', COLORS.goldLight, 20);
+        spawnParticles(d.x, d.y - 15, 16, [mm.color, COLORS.gold, '#FFFFFF'], 70, 200);
+        sfx.scoreStep(state.scoringStepCount, 'money');
+      } else if (mod === 'glass') {
+        state.mult = Math.round(state.mult * 2 * 100) / 100;
+        addShake(5);
+        // 25% chance to shatter (reverting mod back to null)
+        const shattered = Math.random() < 0.25;
+        if (shattered) {
+          d.mod = null;
+          if (d.faces && d.faces[d.faceIndex]) {
+            d.faces[d.faceIndex].mod = null;
+          }
+          state.scoringBanner = `Die #${d.id + 1} Glass Face  →  x2 Mult (SHATTERED!)`;
+          spawnPopup(d.x, d.y - 88, 'x2 & SHATTER!', '#FCA5A5', 24);
+          spawnParticles(d.x, d.y - 15, 28, ['#A5F3FC', '#FFFFFF', '#F87171'], 100, 280);
+          sfx.error();
+        } else {
+          state.scoringBanner = `Die #${d.id + 1} Glass Face  →  x2 Mult`;
+          spawnPopup(d.x, d.y - 82, 'x2 Mult', mm.color, 26);
+          spawnParticles(d.x, d.y - 15, 18, [mm.color, '#FFFFFF'], 80, 220);
+          sfx.scoreStep(state.scoringStepCount, 'xmult');
+        }
       }
       return;
     }
@@ -721,7 +927,7 @@ import {
       c.flash = 1;
       c.pulseColor = COLORS.multRed;
       state.scoringBanner = 'Leftmost card disabled by ' + state.activeBoss.name;
-      spawnPopup(c.x, c.y + 42, 'Debuffed', COLORS.multLight, 19);
+      spawnPopup(c.x, c.y - 48, 'Debuffed', COLORS.multLight, 19);
       sfx.scoreStep(state.scoringStepCount, 'debuff');
       return;
     }
@@ -754,7 +960,7 @@ import {
       }
 
       state.scoringBanner = step.def.name + '  →  ' + ev.label;
-      spawnPopup(c.x, c.y + 45, ev.label, ev.color, ev.multMul ? 26 : 22);
+      spawnPopup(c.x, c.y - 52, ev.label, ev.color, ev.multMul ? 26 : 22);
       spawnParticles(c.x, c.y, ev.multMul ? 18 : 10, [ev.color, '#FFFFFF', COLORS.brassBright], 70, 210);
       if (ev.multMul) addShake(5);
       sfx.scoreStep(state.scoringStepCount, ev.sfx || 'mult');
@@ -772,7 +978,7 @@ import {
       if (step.multMul) state.mult = Math.round(state.mult * step.multMul * 100) / 100;
 
       state.scoringBanner = EDITIONS[step.edition].name + ' Edition  →  ' + step.label;
-      spawnPopup(c.x, c.y + 58, step.label, step.color, 23);
+      spawnPopup(c.x, c.y - 60, step.label, step.color, 23);
       spawnParticles(c.x, c.y, 16, [step.color, '#FFFFFF', '#FDE047'], 80, 230);
       if (step.multMul) addShake(6);
       sfx.scoreStep(state.scoringStepCount, step.sfx);
@@ -782,11 +988,9 @@ import {
     if (step.type === 'TOTAL_SLAM') {
       const handTotal = Math.round(state.chips * state.mult);
       state.scoringHandTotal = handTotal;
-      const prevScore = state.stageScore;
       state.stageScore += handTotal;
       if (handTotal > state.bestHandScore) state.bestHandScore = handTotal;
 
-      // Persist best stats
       if (handTotal > state.stats.bestHand) {
         state.stats.bestHand = handTotal;
         saveStats(state.stats);
@@ -809,7 +1013,6 @@ import {
       }
       sfx.totalSlam(beatTarget);
 
-      // Decide next phase once slam settles
       if (beatTarget) {
         if (state.stage > state.stats.bestStage) {
           state.stats.bestStage = state.stage;
@@ -851,14 +1054,17 @@ import {
       sfx.gameOver();
     } else {
       state.mode = 'PLAYING';
-      // Deselect all and roll fresh 5 dice
-      for (const d of state.dice) d.selected = false;
-      rollDiceSet([0, 1, 2, 3, 4]);
+      const allIndices = [];
+      for (let i = 0; i < state.dice.length; i++) {
+        state.dice[i].selected = false;
+        allIndices.push(i);
+      }
+      rollDiceSet(allIndices);
     }
   }
 
   // =========================================================================
-  // 7. CASH-OUT, SHOP & CARD MANAGEMENT
+  // 6. CASH-OUT, BAZAAR, VOUCHERS & DICE WORKSHOP
   // =========================================================================
   function claimCashOut() {
     if (state.mode !== 'CASH_OUT' || !state.cashOutData) return;
@@ -883,25 +1089,61 @@ import {
     enterShop();
   }
 
+  function rollAnteVoucherIfNeeded() {
+    // Refreshes once per Ante (every 3 stages: Stages 1-3 = Ante 1, Stages 4-6 = Ante 2, Stages 7-9 = Ante 3...)
+    const ante = Math.floor((state.stage - 1) / 3) + 1;
+    if (state.currentVoucherAnte === ante && state.shopVoucher) {
+      return;
+    }
+    state.currentVoucherAnte = ante;
+
+    const available = VOUCHER_CATALOG.filter(v => {
+      const stacks = getVoucherStacks(v.id);
+      if (stacks >= v.maxStacks) return false;
+      if (v.id === 'HEAVY_CUP' && state.dicePool.length >= MAX_DICE_COUNT) return false;
+      return true;
+    });
+
+    if (available.length === 0) {
+      state.shopVoucher = null;
+      return;
+    }
+    const chosen = available[Math.floor(Math.random() * available.length)];
+    state.shopVoucher = { ...chosen, purchased: false };
+  }
+
+  function rollWorkshopUpgrades() {
+    const shuffled = [...DICE_UPGRADE_CATALOG];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    state.shopDiceUpgrades = shuffled.slice(0, 2).map(u => ({ ...u }));
+  }
+
   function enterShop() {
     state.mode = 'SHOP';
+    state.modal = null;
+    state.workshopTarget = null;
     state.focusedActiveUid = null;
+    rollAnteVoucherIfNeeded();
     rollShopInventory();
   }
 
   function rollShopInventory() {
+    const slotCount = getShopCardSlotCount();
     const ownedIds = new Set(state.activeCards.map(c => c.cardId));
     let pool = CARD_CATALOG.filter(c => !ownedIds.has(c.id));
-    if (pool.length < 3) pool = [...CARD_CATALOG];
+    if (pool.length < slotCount) pool = [...CARD_CATALOG];
 
-    // Fisher-Yates shuffle
     const shuffled = [...pool];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
 
-    state.shopCards = shuffled.slice(0, 3).map(def => createCardInstance(def.id));
+    state.shopCards = shuffled.slice(0, slotCount).map(def => createCardInstance(def.id));
+    rollWorkshopUpgrades();
     sfx.cardSnap();
   }
 
@@ -909,12 +1151,92 @@ import {
     if (state.mode !== 'SHOP' || state.modal) return;
     if (state.money < SHOP_REROLL_COST) {
       sfx.error();
-      showNotice('Need $' + SHOP_REROLL_COST + ' to reroll the Shop', 1.4);
+      showNotice('Need $' + SHOP_REROLL_COST + ' to refresh the Bazaar', 1.4);
       return;
     }
     state.money -= SHOP_REROLL_COST;
     spawnPopup(985, 65, '-$' + SHOP_REROLL_COST, COLORS.multLight, 22);
     rollShopInventory();
+  }
+
+  function buyShopVoucher() {
+    if (state.mode !== 'SHOP' || state.modal) return;
+    const v = state.shopVoucher;
+    if (!v || v.purchased) return;
+    if (state.money < VOUCHER_COST) {
+      sfx.error();
+      showNotice(`Need $${VOUCHER_COST} to redeem Voucher`, 1.4);
+      return;
+    }
+
+    state.money -= VOUCHER_COST;
+    v.purchased = true;
+    state.vouchers[v.id] = getVoucherStacks(v.id) + 1;
+
+    // Immediate run parameter application
+    if (v.id === 'HEAVY_CUP' && state.dicePool.length < MAX_DICE_COUNT) {
+      state.dicePool.push(createPoolDie(state.dicePool.length));
+    } else if (v.id === 'VIP_PASS') {
+      // Immediately add the 4th card slot in the current shop
+      const existingIds = new Set([
+        ...state.activeCards.map(c => c.cardId),
+        ...state.shopCards.filter(Boolean).map(c => c.cardId)
+      ]);
+      const extraPool = CARD_CATALOG.filter(c => !existingIds.has(c.id));
+      const pick = extraPool.length > 0
+        ? extraPool[Math.floor(Math.random() * extraPool.length)]
+        : CARD_CATALOG[Math.floor(Math.random() * CARD_CATALOG.length)];
+      state.shopCards.push(createCardInstance(pick.id));
+    }
+
+    sfx.buyCard();
+    spawnPopup(985, 65, '-$' + VOUCHER_COST, COLORS.goldLight, 22);
+    spawnPopup(140, 300, v.name + ' Unlocked!', v.color, 24);
+    spawnParticles(140, 330, 32, [v.color, COLORS.goldLight, '#FFFFFF'], 90, 260);
+    showNotice(`Redeemed ${v.name}: ${v.desc}`, 2.4);
+  }
+
+  function openWorkshopModal(shopIdx) {
+    if (state.mode !== 'SHOP' || state.modal) return;
+    const upg = state.shopDiceUpgrades[shopIdx];
+    if (!upg) return;
+    if (state.money < upg.price) {
+      sfx.error();
+      showNotice(`Need $${upg.price} for ${upg.name}`, 1.4);
+      return;
+    }
+    sfx.click();
+    state.workshopTarget = { shopIdx, upgrade: upg };
+    state.workshopDieIdx = 0;
+    state.modal = 'WORKSHOP';
+  }
+
+  function applyWorkshopUpgrade(shopIdx, dieIdx, faceIdx) {
+    const upg = state.shopDiceUpgrades[shopIdx];
+    const targetDie = state.dicePool[dieIdx];
+    if (!upg || !targetDie || !targetDie.faces[faceIdx]) return;
+    if (state.money < upg.price) {
+      sfx.error();
+      return;
+    }
+
+    state.money -= upg.price;
+    const face = targetDie.faces[faceIdx];
+    if (upg.type === 'value_add') {
+      face.value += upg.valueAdd;
+    } else if (upg.type === 'mod') {
+      face.mod = upg.mod;
+    }
+
+    state.shopDiceUpgrades[shopIdx] = null;
+    state.modal = null;
+    state.workshopTarget = null;
+
+    sfx.buyCard();
+    spawnPopup(985, 65, '-$' + upg.price, COLORS.goldLight, 22);
+    spawnPopup(920, 320, `Die #${dieIdx + 1} Face #${faceIdx + 1} Forged!`, upg.color, 22);
+    spawnParticles(920, 340, 26, [upg.color, COLORS.goldLight, '#FFFFFF'], 80, 240);
+    showNotice(`Applied ${upg.name} to Die #${dieIdx + 1} (Face #${faceIdx + 1})!`, 2.2);
   }
 
   function buyShopCard(shopIdx) {
@@ -929,7 +1251,7 @@ import {
     const isNeg = card.edition === 'negative';
     if (!isNeg && state.activeCards.length >= getMaxCardSlots()) {
       sfx.error();
-      showNotice('Card slots full — sell a card first!', 1.6);
+      showNotice('Card dock full — sell a card first!', 1.6);
       return;
     }
 
@@ -949,8 +1271,6 @@ import {
     const card = state.activeCards[idx];
     if (!card) return;
 
-    // Prevent selling a Negative card if remaining non-negative cards would exceed slots?
-    // Even better: allow selling Negative cards safely; if slots overflow, players just can't buy until below max.
     const val = card.sellValue;
     spawnPopup(card.x, card.y, '+$' + val, COLORS.goldLight, 24);
     spawnParticles(card.x, card.y, 14, [COLORS.goldLight, '#FFFFFF'], 60, 170);
@@ -973,14 +1293,13 @@ import {
   }
 
   // =========================================================================
-  // 8. SIMULATION UPDATE LOOP (CLAMPED DELTA TIME <= 0.05s)
+  // 7. SIMULATION UPDATE LOOP (CLAMPED DELTA TIME <= 0.05s)
   // =========================================================================
   function update(dt) {
     state.time += dt;
 
     if (state.noticeTimer > 0) state.noticeTimer = Math.max(0, state.noticeTimer - dt);
 
-    // Animated stage score counter tick-up
     if (state.displayScore < state.stageScore) {
       const diff = state.stageScore - state.displayScore;
       const step = Math.max(12, diff * Math.min(1, dt * 11));
@@ -994,7 +1313,6 @@ import {
       state.displayScore = state.stageScore;
     }
 
-    // Dice bounce & tumble physics
     for (const d of state.dice) {
       if (d.tumbleTimer > 0) {
         d.tumbleTimer = Math.max(0, d.tumbleTimer - dt);
@@ -1021,7 +1339,6 @@ import {
       d.flash = Math.max(0, d.flash - dt * 3.2);
     }
 
-    // Smooth card movement & bounce decay
     for (const c of state.activeCards) {
       if (!(state.drag && state.drag.active && state.drag.card === c)) {
         c.x = lerp(c.x, c.targetX, Math.min(1, dt * 15));
@@ -1031,7 +1348,6 @@ import {
       c.flash = Math.max(0, c.flash - dt * 2.8);
     }
 
-    // Scoring cascade scheduler
     if (state.mode === 'SCORING' && !state.modal) {
       state.scoringTimer -= dt;
       if (state.scoringTimer <= 0) {
@@ -1045,12 +1361,10 @@ import {
       }
     }
 
-    // Cash-out progressive row reveal
     if (state.mode === 'CASH_OUT') {
       state.cashOutReveal = Math.min(1.2, state.cashOutReveal + dt * 1.45);
     }
 
-    // Update particles, popups, screen shake & hit flash
     updateGraphicsEffects(state, dt);
   }
 
@@ -1063,7 +1377,12 @@ import {
     getStageLabel,
     getStageTarget,
     getUsedCardSlots,
+    getBaseCardSlots,
     getMaxCardSlots,
+    getMaxSelectDice,
+    getStageMaxHands,
+    getStageMaxRerolls,
+    getShopCardSlotCount,
     isDieDebuffedByBoss,
     isCardDebuffedByBoss,
     isAnyDieTumbling,
@@ -1075,6 +1394,9 @@ import {
     clearSelectedDice,
     claimCashOut,
     buyShopCard,
+    buyShopVoucher,
+    openWorkshopModal,
+    applyWorkshopUpgrade,
     rerollShop,
     moveActiveCard,
     sellActiveCard
@@ -1084,12 +1406,13 @@ import {
     ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
     drawTableBackground(ctx, state);
 
-    // Reset per-frame UI interaction registries
     state.buttons = [];
     state.hoverButtonId = null;
     state.hoveredCard = null;
+    state.hoveredDieIdx = (state.mode === 'PLAYING' && !state.modal)
+      ? findHoveredDieIndex(state, state.mouseX, state.mouseY)
+      : -1;
 
-    // Apply logical coordinate scaling + decaying camera shake
     const shakeX = state.shakeMag > 0.1 ? (Math.random() - 0.5) * 2 * state.shakeMag : 0;
     const shakeY = state.shakeMag > 0.1 ? (Math.random() - 0.5) * 2 * state.shakeMag : 0;
 
@@ -1117,25 +1440,24 @@ import {
 
     drawParticlesAndPopups(ctx, state);
     drawCardTooltip(ctx, state, uiCtx);
+    drawDieInspectorTooltip(ctx, state, uiCtx);
     drawOverlayModal(ctx, state, uiCtx);
 
-    // Hit flash on big blind clears
     drawHitFlash(ctx, state, LOGICAL_W, LOGICAL_H);
 
     ctx.restore();
     drawCRTOverlay(ctx, state);
 
-    // Cursor polish
     let cursor = 'default';
     if (state.drag && state.drag.active) cursor = 'grabbing';
     else if (state.hoverButtonId) cursor = 'pointer';
     else if (state.hoveredCard) cursor = state.hoveredCard.zone === 'active' ? 'grab' : 'pointer';
-    else if (state.mode === 'PLAYING' && !state.modal && findHoveredDieIndex(state, state.mouseX, state.mouseY) !== -1) cursor = 'pointer';
+    else if (state.hoveredDieIdx !== -1) cursor = 'pointer';
     canvas.style.cursor = cursor;
   }
 
   // =========================================================================
-  // 9. BOOTSTRAP & MAIN LOOP
+  // 8. BOOTSTRAP & MAIN LOOP
   // =========================================================================
   initInputListeners(canvas, state, {
     LOGICAL_W,

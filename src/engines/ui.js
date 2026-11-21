@@ -2,6 +2,8 @@ import { COLORS } from '../config/colors.js';
 import { EDITIONS } from '../config/editions.js';
 import { HANDS, HAND_ORDER } from '../config/hands.js';
 import { SUIT_SYMBOLS, CARD_BY_ID } from '../config/cards.js';
+import { VOUCHER_COST } from '../config/vouchers.js';
+import { DICE_SIDES, FACE_MOD_META } from '../config/dices.js';
 import {
   clamp,
   tracePixelRect,
@@ -10,6 +12,7 @@ import {
   wrapLines,
   getSuitColor,
   drawDie,
+  drawDieFaceMini,
   drawPlayingCard
 } from './graphicEngine.js';
 import { sfx } from './soundEngine.js';
@@ -29,27 +32,29 @@ export function hitTest(px, py, rect) {
 
 // Bottom Art-Deco Arcana Card Dock Layout (Centered across the bottom of the table)
 export function getActiveCardLayout(state) {
-  const trayX = 160;
-  const trayW = 960;
+  const trayX = 140;
+  const trayW = 1000;
   const count = state.activeCards.length;
-  const cardW = count > 6 ? Math.max(88, Math.floor((trayW - (count - 1) * 10) / count)) : 114;
+  const cardW = count > 6 ? Math.max(84, Math.floor((trayW - (count - 1) * 10) / count)) : 112;
   const cardH = Math.round(cardW * 1.36);
-  const gap = count > 6 ? 10 : 18;
+  const gap = count > 6 ? 10 : 16;
   const totalW = count > 0 ? count * cardW + (count - 1) * gap : 0;
   const startX = trayX + (trayW - totalW) / 2;
   const centerY = 656;
   return { cardW, cardH, gap, startX, centerY, trayX, trayW };
 }
 
-// Centered Shop Showcase Layout (Middle Arena above the bottom Card Dock)
-export function getShopCardRects() {
-  const cardW = 132;
-  const cardH = 180;
-  const gap = 52;
-  const totalW = 3 * cardW + 2 * gap;
-  const startX = (1280 - totalW) / 2;
-  const topY = 230;
-  return [0, 1, 2].map(i => ({
+// Dynamic Shop Card Showcase Rects (supports 3 or 4 cards via VIP Pass Voucher)
+export function getShopCardRects(cardCount = 3) {
+  const zoneX = 246;
+  const zoneW = 550;
+  const cardW = cardCount >= 4 ? 112 : 130;
+  const cardH = Math.round(cardW * 1.36);
+  const gap = cardCount >= 4 ? 18 : 34;
+  const totalW = cardCount * cardW + (cardCount - 1) * gap;
+  const startX = zoneX + (zoneW - totalW) / 2;
+  const topY = 238;
+  return Array.from({ length: cardCount }, (_, i) => ({
     x: startX + i * (cardW + gap),
     y: topY,
     w: cardW,
@@ -91,20 +96,19 @@ export function registerButton(ctx, state, id, x, y, w, h, label, opts = {}) {
   ctx.font = `800 ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
   if (sublabel) {
     ctx.fillText(label, x + w / 2, y + pressY + h / 2 - 8);
-    ctx.font = '600 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.font = '600 10.5px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = 'rgba(248,245,255,0.75)';
-    ctx.fillText(sublabel, x + w / 2, y + pressY + h / 2 + 11);
+    ctx.fillText(sublabel, x + w / 2, y + pressY + h / 2 + 10);
   } else {
     ctx.fillText(label, x + w / 2, y + pressY + h / 2 + 0.5);
   }
   ctx.restore();
 }
 
-// Helper to draw pip dots for Throws & Rerolls gauges
 function drawPipDots(ctx, cx, y, current, max, activeColor) {
-  const dotR = 5.5;
-  const gap = 16;
   const totalCount = Math.max(max, current);
+  const dotR = totalCount > 5 ? 4.5 : 5.5;
+  const gap = totalCount > 5 ? 12 : 15;
   const startX = cx - ((totalCount - 1) * gap) / 2;
   for (let i = 0; i < totalCount; i++) {
     const filled = i < current;
@@ -119,12 +123,18 @@ function drawPipDots(ctx, cx, y, current, max, activeColor) {
 }
 
 // ============================================================================
-// TOP COMMAND RIBBON & CENTER FORMULA DIAL (Replaces Balatro's Left Sidebar!)
+// TOP COMMAND RIBBON & CENTER FORMULA DIAL
 // ============================================================================
 export function drawLeftHUD(ctx, state, uiCtx) {
-  const { getStageLabel, isDieDebuffedByBoss, MAX_INTEREST } = uiCtx;
+  const {
+    getStageLabel,
+    isDieDebuffedByBoss,
+    getMaxSelectDice,
+    getStageMaxHands,
+    getStageMaxRerolls,
+    MAX_INTEREST
+  } = uiCtx;
 
-  // 1. Top Command Ribbon across the top of the screen
   const rx = 24, ry = 14, rw = 1232, rh = 86;
   drawBevelPanel(ctx, rx, ry, rw, rh, {
     fill: COLORS.railBg,
@@ -149,22 +159,29 @@ export function drawLeftHUD(ctx, state, uiCtx) {
   ctx.textBaseline = 'top';
   ctx.font = '800 11px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = isBoss ? COLORS.multLight : COLORS.brassBright;
-  ctx.fillText(stageStr + ' · ' + blindLabel, rx + 24, ry + 18);
+  ctx.fillText(stageStr + ' · ' + blindLabel, rx + 24, ry + 17);
 
   if (isBoss) {
     ctx.font = '800 13px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = '#FFE4E6';
-    ctx.fillText('☠ ' + state.activeBoss.name, rx + 24, ry + 35);
+    ctx.fillText('☠ ' + state.activeBoss.name, rx + 24, ry + 34);
     ctx.font = '600 11px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = '#FDA4AF';
-    ctx.fillText(state.activeBoss.short, rx + 24, ry + 53);
+    ctx.fillText(state.activeBoss.short, rx + 24, ry + 52);
   } else {
-    ctx.font = '800 15px ui-sans-serif, system-ui, sans-serif';
+    const voucherCount = Object.values(state.vouchers || {}).reduce((a, b) => a + b, 0);
+    ctx.font = '800 14.5px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = COLORS.textMain;
-    ctx.fillText('Velvet Parlor Table', rx + 24, ry + 36);
-    ctx.font = '600 11px ui-sans-serif, system-ui, sans-serif';
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText('No active table curse', rx + 24, ry + 54);
+    ctx.fillText('Velvet Parlor Table', rx + 24, ry + 34);
+    ctx.font = '600 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = voucherCount > 0 ? COLORS.chipsLight : COLORS.textMuted;
+    ctx.fillText(
+      voucherCount > 0
+        ? `${state.dicePool.length}d Pool · Max ${getMaxSelectDice()} Combo · ${voucherCount} Voucher${voucherCount > 1 ? 's' : ''}`
+        : `${state.dicePool.length}d Pool · Max ${getMaxSelectDice()} Combo`,
+      rx + 24,
+      ry + 53
+    );
   }
 
   // Center-Left Section: Wide Horizontal Score Meter & Goal
@@ -194,7 +211,7 @@ export function drawLeftHUD(ctx, state, uiCtx) {
   ctx.fillStyle = COLORS.goldLight;
   ctx.fillText(fmtNum(state.targetScore), mx + mw - 16, my + 24);
 
-  // Horizontal progress bar with diamond marker
+  // Horizontal progress bar
   const barX = mx + 16, barY = my + 51, barW = mw - 32, barH = 8;
   ctx.fillStyle = '#090612';
   ctx.fillRect(barX, barY, barW, barH);
@@ -210,9 +227,9 @@ export function drawLeftHUD(ctx, state, uiCtx) {
   ctx.lineWidth = 1;
   ctx.strokeRect(barX + 0.5, barY + 0.5, barW - 1, barH - 1);
 
-  // Center-Right Section: Throws, Shakes & Treasury Bankroll Badges
+  // Center-Right Section: Hands, Rerolls & Treasury Bankroll Badges
   const gx = mx + mw + 12;
-  // Throws gauge
+  const maxHands = getStageMaxHands();
   drawBevelPanel(ctx, gx, my, 102, mh, {
     fill: COLORS.railPanel, border: COLORS.railBorder, lip: 2, r: 8
   });
@@ -223,10 +240,10 @@ export function drawLeftHUD(ctx, state, uiCtx) {
   ctx.font = '900 20px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = state.handsLeft <= 1 ? COLORS.multLight : COLORS.chipsLight;
   ctx.fillText(String(state.handsLeft), gx + 51, my + 23);
-  drawPipDots(ctx, gx + 51, my + 52, state.handsLeft, 4, COLORS.chipsLight);
+  drawPipDots(ctx, gx + 51, my + 52, state.handsLeft, maxHands, COLORS.chipsLight);
 
-  // Rerolls gauge
   const rx2 = gx + 110;
+  const maxRerolls = getStageMaxRerolls();
   drawBevelPanel(ctx, rx2, my, 102, mh, {
     fill: COLORS.railPanel, border: COLORS.railBorder, lip: 2, r: 8
   });
@@ -236,7 +253,7 @@ export function drawLeftHUD(ctx, state, uiCtx) {
   ctx.font = '900 20px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = state.rerollsLeft === 0 ? COLORS.textDim : COLORS.brassBright;
   ctx.fillText(String(state.rerollsLeft), rx2 + 51, my + 23);
-  drawPipDots(ctx, rx2 + 51, my + 52, state.rerollsLeft, 3, COLORS.brassBright);
+  drawPipDots(ctx, rx2 + 51, my + 52, state.rerollsLeft, maxRerolls, COLORS.brassBright);
 
   // Treasury / Bankroll
   const bx = rx2 + 110;
@@ -278,7 +295,7 @@ export function drawLeftHUD(ctx, state, uiCtx) {
     onClick: () => { sfx.click(); state.modal = state.modal === 'PAUSE' ? null : 'PAUSE'; }
   });
 
-  // 2. Center Score Formula Dial Bar (Directly beneath Top Ribbon)
+  // 2. Center Score Formula Dial Bar
   const fx = 250, fy = 110, fw = 780, fh = 58;
   drawBevelPanel(ctx, fx, fy, fw, fh, {
     fill: 'rgba(20, 14, 34, 0.90)',
@@ -287,12 +304,12 @@ export function drawLeftHUD(ctx, state, uiCtx) {
     r: 28
   });
 
-  // Left of Formula: Hand Combo Title & pip preview
+  const maxSelect = getMaxSelectDice();
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   ctx.font = '900 18px ui-sans-serif, system-ui, sans-serif';
   ctx.fillStyle = state.liveHandName ? COLORS.brassBright : COLORS.textDim;
-  ctx.fillText(state.liveHandName ? state.liveHandName.toUpperCase() : 'SELECT 1–3 DICE', fx + 26, fy + 21);
+  ctx.fillText(state.liveHandName ? state.liveHandName.toUpperCase() : `SELECT 1–${maxSelect} DICE`, fx + 26, fy + 21);
 
   ctx.font = '600 11px ui-monospace, SFMono-Regular, Menlo, monospace';
   if (state.mode === 'SCORING' && state.scoringHandTotal > 0) {
@@ -300,19 +317,21 @@ export function drawLeftHUD(ctx, state, uiCtx) {
     ctx.fillText('HAND PAYOUT: +' + fmtNum(state.scoringHandTotal) + ' PTS', fx + 26, fy + 41);
   } else if (state.liveHandName) {
     const sel = state.dice.filter(d => d.selected);
-    const pipSum = sel.reduce((a, d) => a + (isDieDebuffedByBoss(d.value) ? 0 : d.value), 0);
+    const pipSum = sel.reduce((a, d) => {
+      const eff = d.effectiveValue || d.value;
+      return a + (isDieDebuffedByBoss(eff) ? 0 : eff);
+    }, 0);
     ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText(`+${pipSum} die pips added on roll`, fx + 26, fy + 41);
+    ctx.fillText(`+${pipSum} die pips + face mods on roll`, fx + 26, fy + 41);
   } else {
     ctx.fillStyle = COLORS.textDim;
-    ctx.fillText('Click dice below to preview combo', fx + 26, fy + 41);
+    ctx.fillText('Hover any die to inspect its 6 faces', fx + 26, fy + 41);
   }
 
   // Right of Formula: Teal Base Pill × Crimson-Flame Multiplier Pill = Projected Total
   const pillY = fy + 10, pillW = 112, pillH = 38;
   const basePillX = fx + 330;
 
-  // Base Points Pill (Teal)
   drawBevelPanel(ctx, basePillX, pillY, pillW, pillH, {
     fill: COLORS.chipsDark,
     border: COLORS.chipsLight,
@@ -328,12 +347,10 @@ export function drawLeftHUD(ctx, state, uiCtx) {
   ctx.fillStyle = '#FFFFFF';
   ctx.fillText(fmtNum(state.chips), basePillX + 74, pillY + pillH / 2 + 1);
 
-  // Multiply Symbol
   ctx.font = '900 20px ui-sans-serif, system-ui, sans-serif';
   ctx.fillStyle = COLORS.brassBright;
   ctx.fillText('×', basePillX + pillW + 18, pillY + pillH / 2);
 
-  // Mult Pill (Rose/Crimson)
   const multPillX = basePillX + pillW + 36;
   drawBevelPanel(ctx, multPillX, pillY, pillW, pillH, {
     fill: COLORS.multDark,
@@ -348,7 +365,6 @@ export function drawLeftHUD(ctx, state, uiCtx) {
   ctx.fillStyle = '#FFFFFF';
   ctx.fillText(fmtMult(state.mult), multPillX + 74, pillY + pillH / 2 + 1);
 
-  // Equals Projected Preview
   const eqX = multPillX + pillW + 20;
   ctx.textAlign = 'left';
   ctx.font = '800 13px ui-monospace, SFMono-Regular, Menlo, monospace';
@@ -364,13 +380,13 @@ export function drawLeftHUD(ctx, state, uiCtx) {
 }
 
 // ============================================================================
-// BOTTOM ARCANA CARD DOCK (Replaces Balatro's Top Joker Tray!)
+// BOTTOM ARCANA CARD DOCK
 // ============================================================================
 export function drawModifierCardTray(ctx, state, uiCtx) {
   const {
     getUsedCardSlots,
     getMaxCardSlots,
-    BASE_MAX_SLOTS,
+    getBaseCardSlots,
     isCardDebuffedByBoss,
     moveActiveCard,
     sellActiveCard
@@ -386,9 +402,9 @@ export function drawModifierCardTray(ctx, state, uiCtx) {
 
   const usedSlots = getUsedCardSlots();
   const maxSlots = getMaxCardSlots();
-  const negBonus = maxSlots - BASE_MAX_SLOTS;
+  const baseSlots = getBaseCardSlots();
+  const negBonus = maxSlots - baseSlots;
 
-  // Dock Header Bar
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.font = '800 11.5px ui-monospace, SFMono-Regular, Menlo, monospace';
@@ -399,7 +415,7 @@ export function drawModifierCardTray(ctx, state, uiCtx) {
   ctx.font = '700 11.5px ui-monospace, SFMono-Regular, Menlo, monospace';
   const slotLabel = negBonus > 0
     ? `·  ${state.activeCards.length} / ${maxSlots} SLOTS (+${negBonus} Negative)`
-    : `·  ${usedSlots} / ${BASE_MAX_SLOTS} SLOTS`;
+    : `·  ${usedSlots} / ${baseSlots} SLOTS`;
   ctx.fillText(slotLabel, x + 195, y + 10);
 
   ctx.textAlign = 'right';
@@ -410,9 +426,9 @@ export function drawModifierCardTray(ctx, state, uiCtx) {
   const layout = getActiveCardLayout(state);
   if (state.activeCards.length === 0) {
     const emptyW = 104, emptyH = 140, gap = 22;
-    const tot = 5 * emptyW + 4 * gap;
+    const tot = baseSlots * emptyW + (baseSlots - 1) * gap;
     const sx = x + (w - tot) / 2;
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < baseSlots; i++) {
       tracePixelRect(ctx, sx + i * (emptyW + gap), y + 36, emptyW, emptyH, 8);
       ctx.strokeStyle = 'rgba(212, 163, 89, 0.14)';
       ctx.lineWidth = 1.5;
@@ -423,7 +439,7 @@ export function drawModifierCardTray(ctx, state, uiCtx) {
     ctx.textAlign = 'center';
     ctx.font = '600 13.5px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = COLORS.textDim;
-    ctx.fillText('Clear Chapter 1 to visit the Parlor Shop and draft Arcana Playing Cards', x + w / 2, y + 102);
+    ctx.fillText('Clear Chapter 1 to visit the Parlor Bazaar for Arcana Cards, Vouchers & Dice Upgrades', x + w / 2, y + 102);
     return;
   }
 
@@ -462,7 +478,6 @@ export function drawModifierCardTray(ctx, state, uiCtx) {
       hovered: isHovered || isFocused
     });
 
-    // Render precision controls (◀ | SELL | ▶) ABOVE the card in the bottom dock
     if (canManage && isFocused) {
       const barY = card.y - layout.cardH / 2 - 32;
       const bw = Math.max(122, layout.cardW + 10);
@@ -501,16 +516,17 @@ export function drawPlayArena(ctx, state, uiCtx) {
   const {
     isDieDebuffedByBoss,
     isAnyDieTumbling,
+    getMaxSelectDice,
     playSelectedHand,
     triggerReroll,
     clearSelectedDice
   } = uiCtx;
 
   const cx = 640;
+  const maxSelect = getMaxSelectDice();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  // Status / Scoring cascade banner
   if (state.mode === 'SCORING' && state.scoringBanner) {
     drawBevelPanel(ctx, cx - 340, 182, 680, 38, {
       fill: 'rgba(22, 15, 38, 0.95)',
@@ -534,29 +550,28 @@ export function drawPlayArena(ctx, state, uiCtx) {
   } else {
     ctx.font = '600 13px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText('Select up to 3 dice to lock & score · Reroll tumbles all unlocked dice', cx, 201);
+    ctx.fillText(`Select up to ${maxSelect} dice to score · Hover any die to inspect its 6 faces`, cx, 201);
   }
 
-  // Recessed Art-Deco Octagonal Dice Tray in Center of Screen
-  tracePixelRect(ctx, 200, 232, 880, 224, 24);
+  // Recessed Art-Deco Octagonal Dice Tray
+  tracePixelRect(ctx, 180, 232, 920, 224, 24);
   ctx.fillStyle = 'rgba(8, 4, 16, 0.48)';
   ctx.fill();
   ctx.strokeStyle = 'rgba(212, 163, 89, 0.25)';
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Inner brass inlay border
-  tracePixelRect(ctx, 208, 240, 864, 208, 18);
+  tracePixelRect(ctx, 188, 240, 904, 208, 18);
   ctx.strokeStyle = 'rgba(212, 163, 89, 0.10)';
   ctx.lineWidth = 1;
   ctx.stroke();
 
-  // Draw all 5 dice centered at Y = 368
+  // Draw all dice in pool (5..7) and detect hover for Dice Inspector
   for (const d of state.dice) {
-    drawDie(ctx, state, d, false, isDieDebuffedByBoss(d.value));
+    const effVal = d.effectiveValue || d.value;
+    drawDie(ctx, state, d, false, isDieDebuffedByBoss(effVal));
   }
 
-  // Action Controls Bar centered between Dice Tray and Bottom Card Dock
   const selectedCount = state.dice.filter(d => d.selected).length;
   const unselectedCount = state.dice.length - selectedCount;
   const locked = state.mode !== 'PLAYING' || Boolean(state.modal) || isAnyDieTumbling();
@@ -568,7 +583,7 @@ export function drawPlayArena(ctx, state, uiCtx) {
     hoverFill: '#0D9488',
     border: '#5EEAD4',
     fontSize: 18,
-    sublabel: selectedCount >= minDiceNeeded ? `${state.liveHandName}  [Space]` : `Select ${minDiceNeeded}–3 Dice`,
+    sublabel: selectedCount >= minDiceNeeded ? `${state.liveHandName}  [Space]` : `Select ${minDiceNeeded}–${maxSelect} Dice`,
     glow: 'rgba(45, 212, 191, 0.35)',
     disabled: locked || selectedCount < minDiceNeeded,
     onClick: playSelectedHand
@@ -582,7 +597,7 @@ export function drawPlayArena(ctx, state, uiCtx) {
     hoverFill: '#D97706',
     border: '#FCD34D',
     fontSize: 17,
-    sublabel: selectedCount > 0 ? `Keep ${selectedCount} locked  [R]` : 'Tumble all 5 dice  [R]',
+    sublabel: selectedCount > 0 ? `Keep ${selectedCount} locked  [R]` : `Tumble all ${state.dice.length} dice  [R]`,
     glow: 'rgba(252, 211, 77, 0.3)',
     disabled: locked || state.rerollsLeft <= 0 || unselectedCount === 0,
     onClick: triggerReroll
@@ -597,6 +612,94 @@ export function drawPlayArena(ctx, state, uiCtx) {
     disabled: locked || selectedCount === 0,
     onClick: clearSelectedDice
   });
+}
+
+// ============================================================================
+// DICE INSPECTOR TOOLTIP (Hovering over any die on the table shows all 6 faces)
+// ============================================================================
+export function drawDieInspectorTooltip(ctx, state, uiCtx) {
+  if (state.mode !== 'PLAYING' || state.modal || state.hoveredCard) return;
+  if (state.hoveredDieIdx === undefined || state.hoveredDieIdx === -1) return;
+  const die = state.dice[state.hoveredDieIdx];
+  if (!die || !Array.isArray(die.faces) || die.tumbleTimer > 0.05) return;
+
+  const { LOGICAL_W } = uiCtx;
+  const tipW = 368;
+  const tipH = 148;
+  const liftY = die.selected ? -34 : 0;
+  let tx = die.x - tipW / 2;
+  tx = clamp(tx, 24, LOGICAL_W - tipW - 24);
+  let ty = die.y + liftY - tipH - 64;
+  if (ty < 14) ty = die.y + 68;
+
+  drawBevelPanel(ctx, tx, ty, tipW, tipH, {
+    fill: 'rgba(14, 10, 26, 0.97)',
+    border: COLORS.brassBright,
+    lip: 4,
+    r: 10,
+    glow: 'rgba(0,0,0,0.65)'
+  });
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.font = '800 13px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = COLORS.brassBright;
+  ctx.fillText(`DIE #${die.id + 1} INSPECTOR  ·  ALL 6 FACES`, tx + 14, ty + 11);
+
+  const curFace = die.faces[die.faceIndex];
+  const curModMeta = curFace && curFace.mod ? FACE_MOD_META[curFace.mod] : null;
+  ctx.textAlign = 'right';
+  ctx.font = '700 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = curModMeta ? curModMeta.color : COLORS.textMuted;
+  ctx.fillText(
+    curModMeta ? `Rolled: ${die.value} (${curModMeta.name})` : `Rolled Face: ${die.value}`,
+    tx + tipW - 14,
+    ty + 12
+  );
+
+  // Draw all 6 faces in a horizontal row
+  const cellSize = 46;
+  const gap = 11;
+  const startX = tx + 18 + cellSize / 2;
+  const faceCy = ty + 62;
+
+  for (let i = 0; i < DICE_SIDES; i++) {
+    const f = die.faces[i];
+    const fCx = startX + i * (cellSize + gap);
+    const isCurrentRolled = i === die.faceIndex;
+
+    if (isCurrentRolled) {
+      tracePixelRect(ctx, fCx - cellSize / 2 - 3, faceCy - cellSize / 2 - 3, cellSize + 6, cellSize + 6, 12);
+      ctx.strokeStyle = COLORS.emerald;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    drawDieFaceMini(ctx, f, fCx, faceCy, cellSize, { selected: isCurrentRolled });
+
+    // Caption under each face
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.font = '700 9.5px ui-monospace, SFMono-Regular, Menlo, monospace';
+    if (f.mod) {
+      const mm = FACE_MOD_META[f.mod];
+      ctx.fillStyle = mm.color;
+      ctx.fillText(mm.short, fCx, faceCy + cellSize / 2 + 6);
+    } else {
+      ctx.fillStyle = COLORS.textMuted;
+      ctx.fillText(`Val ${f.value}`, fCx, faceCy + cellSize / 2 + 6);
+    }
+  }
+
+  // Footer summary
+  ctx.textAlign = 'center';
+  ctx.font = '600 11px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = COLORS.textMuted;
+  ctx.fillText(
+    curModMeta ? curModMeta.desc : 'Upgrade individual faces in the Bazaar Dice Workshop ($4)',
+    tx + tipW / 2,
+    ty + tipH - 21
+  );
 }
 
 export function drawCashOutPanel(ctx, state, uiCtx) {
@@ -661,7 +764,7 @@ export function drawCashOutPanel(ctx, state, uiCtx) {
   ctx.fillText(`+$${d.total}`, x + w - 48, ry + 13);
 
   registerButton(ctx, state, 'btn_cashout', x + 120, y + h - 72, w - 240, 52,
-    d.isRunVictory ? 'CLAIM VICTORY' : 'COLLECT & VISIT SHOP', {
+    d.isRunVictory ? 'CLAIM VICTORY' : 'COLLECT & VISIT BAZAAR', {
       fill: '#D97706',
       hoverFill: '#F59E0B',
       border: '#FDE047',
@@ -673,21 +776,27 @@ export function drawCashOutPanel(ctx, state, uiCtx) {
     });
 }
 
+// ============================================================================
+// EXPANDED PARLOR BAZAAR: VOUCHER ALCOVE + ARCANA CARDS + DICE WORKSHOP
+// ============================================================================
 export function drawShopArena(ctx, state, uiCtx) {
   const {
     getStageLabel,
     getStageTarget,
     getMaxCardSlots,
+    getShopCardSlotCount,
     buyShopCard,
+    buyShopVoucher,
+    openWorkshopModal,
     rerollShop,
     startStage,
     SHOP_REROLL_COST
   } = uiCtx;
 
-  const w = 960, h = 362;
-  const x = (1280 - w) / 2, y = 178;
+  const w = 1232, h = 366;
+  const x = 24, y = 176;
   drawBevelPanel(ctx, x, y, w, h, {
-    fill: 'rgba(18, 12, 32, 0.92)',
+    fill: 'rgba(18, 12, 32, 0.93)',
     border: COLORS.brass,
     lip: 5,
     r: 14
@@ -696,31 +805,120 @@ export function drawShopArena(ctx, state, uiCtx) {
   // Shop Header
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = '900 22px ui-sans-serif, system-ui, sans-serif';
+  ctx.font = '900 20px ui-sans-serif, system-ui, sans-serif';
   ctx.fillStyle = COLORS.brassBright;
-  ctx.fillText('♦ ARCANA PARLOR BAZAAR', x + 26, y + 16);
+  ctx.fillText('♦ ARCANA PARLOR BAZAAR & DICE WORKSHOP', x + 22, y + 14);
+
+  if (state.noticeTimer > 0 && state.noticeText) {
+    ctx.textAlign = 'center';
+    ctx.font = '700 13px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = '#FDA4AF';
+    ctx.fillText(state.noticeText, x + w / 2 + 30, y + 16);
+  }
 
   const nextStage = state.stage + 1;
   const nextIsBoss = nextStage % 3 === 0;
   ctx.textAlign = 'right';
-  ctx.font = '700 12.5px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.font = '700 12px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = nextIsBoss ? COLORS.multLight : COLORS.textMuted;
   ctx.fillText(
-    `Up Next: Chapter ${nextStage} (${getStageLabel(nextStage)}) · Goal ${fmtNum(getStageTarget(nextStage))}`,
-    x + w - 26,
-    y + 20
+    `Next: Chapter ${nextStage} (${getStageLabel(nextStage)}) · Goal ${fmtNum(getStageTarget(nextStage))}`,
+    x + w - 22,
+    y + 18
   );
 
-  // 3 Showcase Cards on Left/Center + Action Column on Right
-  const rects = getShopCardRects();
+  // -------------------------------------------------------------------------
+  // 1. LEFT ALCOVE: ANTE VOUCHER ($10, Refreshes every 3 stages)
+  // -------------------------------------------------------------------------
+  const vx = x + 18, vy = y + 44, vw = 194, vh = 304;
+  drawBevelPanel(ctx, vx, vy, vw, vh, {
+    fill: 'rgba(10, 6, 20, 0.75)',
+    border: '#6E5623',
+    lip: 3,
+    r: 10
+  });
+
+  const currentAnte = Math.floor((state.stage - 1) / 3) + 1;
+  ctx.textAlign = 'center';
+  ctx.font = '800 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = COLORS.brassBright;
+  ctx.fillText(`ANTE ${currentAnte} VOUCHER`, vx + vw / 2, vy + 12);
+
+  ctx.font = '600 10px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = COLORS.textMuted;
+  ctx.fillText('Permanent Run Upgrade', vx + vw / 2, vy + 28);
+
+  const voucher = state.shopVoucher;
+  if (!voucher || voucher.purchased) {
+    tracePixelRect(ctx, vx + 16, vy + 52, vw - 32, 178, 10);
+    ctx.fillStyle = 'rgba(255,255,255,0.03)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '800 13px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = COLORS.textDim;
+    ctx.fillText(voucher && voucher.purchased ? 'VOUCHER CLAIMED' : 'SOLD OUT', vx + vw / 2, vy + 130);
+    ctx.font = '600 10.5px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillText('Refreshes next Ante', vx + vw / 2, vy + 152);
+  } else {
+    // Draw ornate Voucher ticket
+    const tx = vx + 14, ty = vy + 48, tw = vw - 28, th = 186;
+    drawBevelPanel(ctx, tx, ty, tw, th, {
+      fill: '#20153B',
+      border: voucher.color,
+      lip: 3,
+      r: 10,
+      glow: 'rgba(245, 205, 121, 0.16)'
+    });
+
+    // Tag pill
+    ctx.fillStyle = 'rgba(10, 6, 20, 0.85)';
+    ctx.fillRect(tx + 12, ty + 12, tw - 24, 22);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '900 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = voucher.color;
+    ctx.fillText(voucher.tag, tx + tw / 2, ty + 23);
+
+    // Voucher Title
+    ctx.textBaseline = 'top';
+    ctx.font = '900 16px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.textMain;
+    ctx.fillText(voucher.name, tx + tw / 2, ty + 46);
+
+    // Wrapped description
+    ctx.font = '600 11.5px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = '#DDD6FE';
+    const vLines = wrapLines(ctx, voucher.desc, tw - 22);
+    vLines.forEach((ln, i) => {
+      ctx.fillText(ln, tx + tw / 2, ty + 76 + i * 16);
+    });
+
+    const canAffordV = state.money >= VOUCHER_COST && !state.modal;
+    registerButton(ctx, state, 'shop_buy_voucher', vx + 14, vy + vh - 56, vw - 28, 42, `REDEEM $${VOUCHER_COST}`, {
+      fill: canAffordV ? '#7C2D12' : '#1B162A',
+      hoverFill: '#9A3412',
+      border: canAffordV ? COLORS.goldLight : COLORS.railBorder,
+      fontSize: 13.5,
+      disabled: !canAffordV,
+      onClick: buyShopVoucher
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // 2. CENTER SHOWCASE: 3 OR 4 ARCANA PLAYING CARDS
+  // -------------------------------------------------------------------------
+  const slotCount = getShopCardSlotCount();
+  const rects = getShopCardRects(slotCount);
   const slotsFull = state.activeCards.length >= getMaxCardSlots();
 
   rects.forEach((r, idx) => {
-    // Shift shop cards slightly left to make room for bazaar action controls on right
-    const cardRect = { x: r.x - 120, y: r.y, w: r.w, h: r.h };
     const card = state.shopCards[idx];
 
-    tracePixelRect(ctx, cardRect.x - 12, cardRect.y - 10, cardRect.w + 24, cardRect.h + 68, 10);
+    tracePixelRect(ctx, r.x - 10, r.y - 10, r.w + 20, r.h + 64, 10);
     ctx.fillStyle = 'rgba(9, 6, 18, 0.68)';
     ctx.fill();
     ctx.strokeStyle = 'rgba(212, 163, 89, 0.16)';
@@ -730,18 +928,18 @@ export function drawShopArena(ctx, state, uiCtx) {
     if (!card) {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = '800 14px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.font = '800 13px ui-monospace, SFMono-Regular, Menlo, monospace';
       ctx.fillStyle = COLORS.textDim;
-      ctx.fillText('ACQUIRED', cardRect.x + cardRect.w / 2, cardRect.y + cardRect.h / 2);
+      ctx.fillText('ACQUIRED', r.x + r.w / 2, r.y + r.h / 2);
       return;
     }
 
-    const hovered = !state.modal && hitTest(state.mouseX, state.mouseY, cardRect);
+    const hovered = !state.modal && hitTest(state.mouseX, state.mouseY, r);
     if (hovered) {
-      state.hoveredCard = { zone: 'shop', card, idx, rect: cardRect };
+      state.hoveredCard = { zone: 'shop', card, idx, rect: r };
     }
 
-    drawPlayingCard(ctx, state, card, cardRect.x + cardRect.w / 2, cardRect.y + cardRect.h / 2, cardRect.w, cardRect.h, {
+    drawPlayingCard(ctx, state, card, r.x + r.w / 2, r.y + r.h / 2, r.w, r.h, {
       hovered
     });
 
@@ -753,29 +951,104 @@ export function drawShopArena(ctx, state, uiCtx) {
     if (!canFit) buyLabel = 'DOCK FULL';
     else if (isNeg) buyLabel = `DRAFT $${card.price} (+1)`;
 
-    registerButton(ctx, state, `shop_buy_${idx}`, cardRect.x - 2, cardRect.y + cardRect.h + 12, cardRect.w + 4, 36, buyLabel, {
+    registerButton(ctx, state, `shop_buy_${idx}`, r.x - 2, r.y + r.h + 10, r.w + 4, 34, buyLabel, {
       fill: buyDisabled ? '#1B162A' : '#0F766E',
       hoverFill: '#0D9488',
       border: buyDisabled ? COLORS.railBorder : '#5EEAD4',
-      fontSize: 13,
+      fontSize: 12.5,
       disabled: buyDisabled,
       onClick: () => buyShopCard(idx)
     });
   });
 
-  // Right Column inside Shop Panel: Reroll & Next Chapter Buttons
-  const sideX = x + w - 256;
-  registerButton(ctx, state, 'shop_reroll', sideX, y + 84, 226, 64, `REFRESH BAZAAR ($${SHOP_REROLL_COST})`, {
+  // -------------------------------------------------------------------------
+  // 3. RIGHT SECTION: DICE WORKSHOP (2 Consumables, $4 each) + BAZAAR ACTIONS
+  // -------------------------------------------------------------------------
+  const wx = 812, wy = y + 44, ww = 232, wh = 304;
+  drawBevelPanel(ctx, wx, wy, ww, wh, {
+    fill: 'rgba(10, 6, 20, 0.75)',
+    border: COLORS.railBorderBright,
+    lip: 3,
+    r: 10
+  });
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.font = '800 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = '#38BDF8';
+  ctx.fillText('⚒ DICE WORKSHOP ($4)', wx + ww / 2, wy + 12);
+  ctx.font = '600 10px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = COLORS.textMuted;
+  ctx.fillText('Craft onto any die face', wx + ww / 2, wy + 27);
+
+  for (let i = 0; i < 2; i++) {
+    const upg = state.shopDiceUpgrades ? state.shopDiceUpgrades[i] : null;
+    const uy = wy + 46 + i * 124;
+    const uw = ww - 24;
+    const uh = 114;
+    const ux = wx + 12;
+
+    drawBevelPanel(ctx, ux, uy, uw, uh, {
+      fill: upg ? '#1A1330' : 'rgba(255,255,255,0.02)',
+      border: upg ? upg.color : 'rgba(255,255,255,0.08)',
+      lip: 2,
+      r: 8
+    });
+
+    if (!upg) {
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '800 12px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.fillStyle = COLORS.textDim;
+      ctx.fillText('CRAFTED', ux + uw / 2, uy + uh / 2);
+      continue;
+    }
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.font = '800 13px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.textMain;
+    ctx.fillText(upg.name, ux + 10, uy + 9);
+
+    ctx.textAlign = 'right';
+    ctx.font = '800 10px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = upg.color;
+    ctx.fillText(upg.tag, ux + uw - 10, uy + 11);
+
+    ctx.textAlign = 'left';
+    ctx.font = '600 10.5px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.textMuted;
+    const uLines = wrapLines(ctx, upg.desc, uw - 20);
+    uLines.slice(0, 2).forEach((ln, li) => {
+      ctx.fillText(ln, ux + 10, uy + 30 + li * 14);
+    });
+
+    const canAffordU = state.money >= upg.price && !state.modal;
+    registerButton(ctx, state, `shop_workshop_${i}`, ux + 10, uy + uh - 36, uw - 20, 28, `FORGE FACE $${upg.price}`, {
+      fill: canAffordU ? '#0369A1' : '#1B162A',
+      hoverFill: '#0284C7',
+      border: canAffordU ? '#7DD3FC' : COLORS.railBorder,
+      fontSize: 11.5,
+      lip: 2,
+      disabled: !canAffordU,
+      onClick: () => openWorkshopModal(i)
+    });
+  }
+
+  // Far-Right Action Column: Refresh Bazaar & Next Chapter
+  const sideX = 1058;
+  const sideW = 180;
+  registerButton(ctx, state, 'shop_reroll', sideX, wy + 34, sideW, 68, `REFRESH ($${SHOP_REROLL_COST})`, {
     fill: '#B45309',
     hoverFill: '#D97706',
     border: '#FCD34D',
-    fontSize: 15,
-    sublabel: 'Roll 3 new cards  [R]',
+    fontSize: 14.5,
+    sublabel: 'Cards & Tools  [R]',
     disabled: state.money < SHOP_REROLL_COST || Boolean(state.modal),
     onClick: rerollShop
   });
 
-  registerButton(ctx, state, 'shop_next', sideX, y + 168, 226, 72, `NEXT CHAPTER (${nextStage}) ▸`, {
+  registerButton(ctx, state, 'shop_next', sideX, wy + 122, sideW, 76, `CHAPTER ${nextStage} ▸`, {
     fill: '#6D28D9',
     hoverFill: '#7C3AED',
     border: '#C4B5FD',
@@ -786,17 +1059,11 @@ export function drawShopArena(ctx, state, uiCtx) {
     onClick: () => startStage(nextStage)
   });
 
-  // Notice or tip at bottom of shop right column
   ctx.textAlign = 'center';
-  ctx.font = '600 11.5px ui-sans-serif, system-ui, sans-serif';
-  if (state.noticeTimer > 0 && state.noticeText) {
-    ctx.fillStyle = '#FDA4AF';
-    ctx.fillText(state.noticeText, sideX + 113, y + 275);
-  } else {
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText('Hold $5 increments for', sideX + 113, y + 266);
-    ctx.fillText('up to +$5 Interest per stage', sideX + 113, y + 284);
-  }
+  ctx.font = '600 11px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = COLORS.textMuted;
+  ctx.fillText('Save $5 increments', sideX + sideW / 2, wy + 232);
+  ctx.fillText('for up to +$5 Interest', sideX + sideW / 2, wy + 248);
 }
 
 export function drawCardTooltip(ctx, state, uiCtx) {
@@ -818,7 +1085,6 @@ export function drawCardTooltip(ctx, state, uiCtx) {
 
   let tx = rect.x + rect.w / 2 - tipW / 2;
   tx = clamp(tx, 24, LOGICAL_W - tipW - 24);
-  // Active cards are in the bottom dock -> position tooltip ABOVE the card
   let ty = zone === 'active' ? rect.y - tipH - 38 : rect.y - tipH - 14;
   if (ty < 14) ty = rect.y + rect.h + 16;
   if (ty + tipH > LOGICAL_H - 14) ty = LOGICAL_H - tipH - 14;
@@ -946,9 +1212,9 @@ export function drawTitleScreen(ctx, state, uiCtx) {
   ctx.restore();
 
   ctx.textAlign = 'center';
-  ctx.font = '600 16px ui-sans-serif, system-ui, sans-serif';
+  ctx.font = '600 15.5px ui-sans-serif, system-ui, sans-serif';
   ctx.fillStyle = COLORS.textMuted;
-  ctx.fillText('Sculpt 3-dice combos · Dock 18 Arcana cards across 5 editions · Conquer 9 chapters + Endless', fanCx, 250);
+  ctx.fillText('Forge custom dice faces · Redeem Vouchers · Dock 18 Arcana cards · Conquer 9 chapters + Endless', fanCx, 250);
 
   registerButton(ctx, state, 'title_play', fanCx - 140, 286, 280, 62, 'ENTER PARLOR', {
     fill: '#0F766E',
@@ -981,7 +1247,7 @@ export function drawTitleScreen(ctx, state, uiCtx) {
 
   ctx.font = '600 12.5px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = COLORS.textDim;
-  ctx.fillText('Click Dice (1–5) · Space Score Hand · R Reroll · Drag Dock Cards to Reorder · Esc Pause', fanCx, 718);
+  ctx.fillText('Click Dice (1–7) · Hover Die to Inspect Faces · Space Score · R Reroll · Esc Pause', fanCx, 718);
 }
 
 export function drawEndModal(ctx, state, isVictory, uiCtx) {
@@ -1068,13 +1334,131 @@ export function drawEndModal(ctx, state, isVictory, uiCtx) {
 
 export function drawOverlayModal(ctx, state, uiCtx) {
   if (!state.modal) return;
-  const { startNewRun, LOGICAL_W, LOGICAL_H } = uiCtx;
+  const { startNewRun, applyWorkshopUpgrade, LOGICAL_W, LOGICAL_H } = uiCtx;
 
   state.buttons = [];
   state.hoverButtonId = null;
   state.hoveredCard = null;
-  ctx.fillStyle = 'rgba(7, 3, 16, 0.82)';
+  ctx.fillStyle = 'rgba(7, 3, 16, 0.85)';
   ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+
+  // -------------------------------------------------------------------------
+  // DICE WORKSHOP MODAL: Choose Die (1..N) & Choose Face (1..6) to Forge
+  // -------------------------------------------------------------------------
+  if (state.modal === 'WORKSHOP' && state.workshopTarget) {
+    const { shopIdx, upgrade } = state.workshopTarget;
+    const selectedDieIdx = clamp(state.workshopDieIdx || 0, 0, state.dicePool.length - 1);
+    const targetDie = state.dicePool[selectedDieIdx];
+
+    const w = 780, h = 470;
+    const x = (LOGICAL_W - w) / 2, y = (LOGICAL_H - h) / 2;
+    drawBevelPanel(ctx, x, y, w, h, {
+      fill: '#140E24',
+      border: upgrade.color,
+      lip: 6,
+      r: 14,
+      glow: 'rgba(56, 189, 248, 0.25)'
+    });
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.font = '900 24px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = upgrade.color;
+    ctx.fillText(`⚒ DICE WORKSHOP: ${upgrade.name.toUpperCase()} ($${upgrade.price})`, x + 32, y + 24);
+
+    ctx.font = '600 13.5px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.textMain;
+    ctx.fillText(upgrade.desc, x + 32, y + 56);
+
+    registerButton(ctx, state, 'workshop_cancel', x + w - 132, y + 22, 100, 38, 'CANCEL', {
+      fill: COLORS.railPanel, hoverFill: '#2D224A', fontSize: 13,
+      onClick: () => { sfx.click(); state.modal = null; state.workshopTarget = null; }
+    });
+
+    // Step 1: Select which Die from Pool
+    ctx.font = '800 12px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = COLORS.brassBright;
+    ctx.fillText('STEP 1 — SELECT A DIE FROM YOUR POOL:', x + 32, y + 96);
+
+    const poolCount = state.dicePool.length;
+    const tabW = Math.min(96, Math.floor((w - 64 - (poolCount - 1) * 10) / poolCount));
+    for (let i = 0; i < poolCount; i++) {
+      const tx = x + 32 + i * (tabW + 10);
+      const isSel = i === selectedDieIdx;
+      const modCount = state.dicePool[i].faces.filter(f => f.mod !== null || f.value > 6).length;
+      registerButton(ctx, state, `ws_die_${i}`, tx, y + 118, tabW, 48, `DIE #${i + 1}`, {
+        fill: isSel ? '#0F766E' : COLORS.railPanel,
+        hoverFill: isSel ? '#0D9488' : '#2D224A',
+        border: isSel ? '#5EEAD4' : COLORS.railBorderBright,
+        fontSize: 13.5,
+        sublabel: modCount > 0 ? `${modCount} forged` : 'Standard',
+        lip: 2,
+        onClick: () => { sfx.click(); state.workshopDieIdx = i; }
+      });
+    }
+
+    // Step 2: Click one of the 6 faces on the selected Die to apply the upgrade
+    ctx.textAlign = 'left';
+    ctx.font = '800 12px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = COLORS.brassBright;
+    ctx.fillText(`STEP 2 — CLICK A FACE ON DIE #${selectedDieIdx + 1} TO APPLY ${upgrade.tag}:`, x + 32, y + 188);
+
+    const cardW = 104, cardH = 178, gap = 16;
+    const totalFacesW = 6 * cardW + 5 * gap;
+    const startFX = x + (w - totalFacesW) / 2;
+    const faceY = y + 216;
+
+    for (let fIdx = 0; fIdx < DICE_SIDES; fIdx++) {
+      const face = targetDie.faces[fIdx];
+      const fx = startFX + fIdx * (cardW + gap);
+      const fRect = { x: fx, y: faceY, w: cardW, h: cardH };
+      const fHover = hitTest(state.mouseX, state.mouseY, fRect);
+      const mm = face.mod ? FACE_MOD_META[face.mod] : null;
+
+      drawBevelPanel(ctx, fx, faceY, cardW, cardH, {
+        fill: fHover ? '#261C42' : '#18112C',
+        border: fHover ? COLORS.brassBright : (mm ? mm.border : COLORS.railBorder),
+        lip: 3,
+        r: 10
+      });
+
+      ctx.textAlign = 'center';
+      ctx.font = '700 10.5px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.fillStyle = COLORS.textMuted;
+      ctx.fillText(`FACE #${fIdx + 1}`, fx + cardW / 2, faceY + 10);
+
+      // Draw mini die face preview
+      drawDieFaceMini(ctx, face, fx + cardW / 2, faceY + 62, 58, { hovered: fHover });
+
+      // Current value & mod status
+      ctx.font = '800 11.5px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = COLORS.textMain;
+      ctx.fillText(`Value: ${face.value}`, fx + cardW / 2, faceY + 100);
+
+      ctx.font = '700 10px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.fillStyle = mm ? mm.color : COLORS.textDim;
+      ctx.fillText(mm ? mm.name : 'No Inlay', fx + cardW / 2, faceY + 118);
+
+      registerButton(ctx, state, `ws_apply_${fIdx}`, fx + 8, faceY + cardH - 38, cardW - 16, 28, 'APPLY', {
+        fill: '#0369A1',
+        hoverFill: '#0284C7',
+        border: '#7DD3FC',
+        fontSize: 11.5,
+        lip: 2,
+        onClick: () => applyWorkshopUpgrade(shopIdx, selectedDieIdx, fIdx)
+      });
+    }
+
+    ctx.textAlign = 'center';
+    ctx.font = '600 11.5px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText(
+      'Tip: Pip Forger (+1 Value) stacks with existing Inlays; applying a new Inlay replaces the face’s current Inlay.',
+      x + w / 2,
+      y + h - 32
+    );
+    return;
+  }
 
   if (state.modal === 'PAUSE') {
     const w = 420, h = 330;
@@ -1104,7 +1488,7 @@ export function drawOverlayModal(ctx, state, uiCtx) {
   }
 
   if (state.modal === 'GUIDE') {
-    const w = 820, h = 580;
+    const w = 880, h = 620;
     const x = (LOGICAL_W - w) / 2, y = (LOGICAL_H - h) / 2;
     drawBevelPanel(ctx, x, y, w, h, {
       fill: '#140E24', border: COLORS.brassBright, lip: 6, r: 14
@@ -1112,87 +1496,93 @@ export function drawOverlayModal(ctx, state, uiCtx) {
 
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.font = '900 24px ui-sans-serif, system-ui, sans-serif';
+    ctx.font = '900 22px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = COLORS.brassBright;
-    ctx.fillText('SCORING HANDS & ARCANA EDITIONS', x + 32, y + 24);
+    ctx.fillText('SCORING HANDS, FACE INLAYS & VOUCHERS', x + 28, y + 20);
 
-    registerButton(ctx, state, 'guide_close', x + w - 124, y + 20, 92, 36, 'CLOSE', {
+    registerButton(ctx, state, 'guide_close', x + w - 120, y + 18, 92, 34, 'CLOSE', {
       fill: COLORS.railPanel, hoverFill: '#2D224A', fontSize: 13,
       onClick: () => { sfx.click(); state.modal = null; }
     });
 
-    ctx.font = '800 13px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.font = '800 12px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText('3-DICE HANDS (Each scored die adds its pips to Base Points)', x + 32, y + 72);
+    ctx.fillText('1–4 DICE HANDS (4-Dice Hands unlocked with Wide Grip Voucher)', x + 28, y + 64);
 
-    let hy = y + 100;
+    let hy = y + 88;
     for (const hid of HAND_ORDER.slice().reverse()) {
       const hd = HANDS[hid];
-      drawBevelPanel(ctx, x + 32, hy, 420, 56, {
-        fill: COLORS.railPanel, border: COLORS.railBorder, lip: 2, r: 8
+      drawBevelPanel(ctx, x + 28, hy, 440, 50, {
+        fill: COLORS.railPanel, border: COLORS.railBorder, lip: 2, r: 7
       });
       ctx.textAlign = 'left';
-      ctx.font = '800 15px ui-sans-serif, system-ui, sans-serif';
+      ctx.font = '800 14px ui-sans-serif, system-ui, sans-serif';
       ctx.fillStyle = COLORS.textMain;
-      ctx.fillText(hd.name, x + 46, hy + 10);
-      ctx.font = '600 12px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillText(hd.name, x + 42, hy + 8);
+      ctx.font = '600 11.5px ui-sans-serif, system-ui, sans-serif';
       ctx.fillStyle = COLORS.textMuted;
-      ctx.fillText(hd.desc, x + 46, hy + 31);
+      ctx.fillText(hd.desc, x + 42, hy + 27);
 
       ctx.textAlign = 'right';
-      ctx.font = '800 15px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.font = '800 14px ui-monospace, SFMono-Regular, Menlo, monospace';
       ctx.fillStyle = COLORS.chipsLight;
-      ctx.fillText(`${hd.chips}`, x + 378, hy + 20);
+      ctx.fillText(`${hd.chips}`, x + 394, hy + 17);
       ctx.fillStyle = COLORS.textMuted;
-      ctx.fillText('×', x + 396, hy + 20);
+      ctx.fillText('×', x + 412, hy + 17);
       ctx.fillStyle = COLORS.multLight;
-      ctx.fillText(`${hd.mult}`, x + 436, hy + 20);
-      hy += 66;
+      ctx.fillText(`${hd.mult}`, x + 454, hy + 17);
+      hy += 57;
     }
 
-    const rx = x + 480;
+    const rx = x + 494;
     ctx.textAlign = 'left';
-    ctx.font = '800 13px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.font = '800 12px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText('CARD EDITIONS (Rolled in Bazaar)', rx, y + 72);
+    ctx.fillText('DICE WORKSHOP UPGRADES ($4)', rx, y + 64);
 
-    const edList = [
-      ['Standard (80%)', 'Normal card behavior', '#CBD5E1'],
-      ['Foil (8%)', '+50 Base Points when triggered', '#2DD4BF'],
-      ['Holographic (7%)', '+12 Mult when triggered', '#F472B6'],
-      ['Polychrome (3%)', 'x1.5 Mult when triggered', '#C084FC'],
-      ['Negative (2%)', '+1 Max Dock Slot (0 space)', '#38BDF8']
+    const upgList = [
+      ['Pip Forger (+1 Val)', 'Permanently increases face value by +1 (7+)', '#F5CD79'],
+      ['Ruby Inlay (+15M)', 'Triggers +15 Mult when face is scored', '#FB7185'],
+      ['Sapphire Inlay (+50C)', 'Triggers +50 Base Points when scored', '#38BDF8'],
+      ['Gold Leaf (+$3)', 'Grants +$3 immediately when scored', '#FEF08A'],
+      ['Glass Face (x2M)', 'x2 Mult when scored (25% shatter chance)', '#A5F3FC'],
+      ['Wild Face (★Any)', 'Counts as whichever value maximizes hand', '#E879F9']
     ];
-    let ey = y + 102;
-    for (const [name, txt, col] of edList) {
-      ctx.font = '800 14px ui-sans-serif, system-ui, sans-serif';
+    let ey = y + 88;
+    for (const [name, txt, col] of upgList) {
+      ctx.font = '800 13px ui-sans-serif, system-ui, sans-serif';
       ctx.fillStyle = col;
       ctx.fillText(name, rx, ey);
-      ctx.font = '600 12.5px ui-sans-serif, system-ui, sans-serif';
+      ctx.font = '600 11.5px ui-sans-serif, system-ui, sans-serif';
       ctx.fillStyle = '#DDD6FE';
-      ctx.fillText(txt, rx, ey + 19);
-      ey += 48;
+      ctx.fillText(txt, rx, ey + 16);
+      ey += 40;
     }
 
-    drawBevelPanel(ctx, rx, ey + 10, 308, 134, {
-      fill: '#18122B', border: COLORS.railBorderBright, lip: 2, r: 8
-    });
-    ctx.font = '800 12.5px ui-monospace, SFMono-Regular, Menlo, monospace';
-    ctx.fillStyle = COLORS.brassBright;
-    ctx.fillText('PARLOR STRATEGY TIPS', rx + 14, ey + 24);
-    ctx.font = '600 12px ui-sans-serif, system-ui, sans-serif';
-    ctx.fillStyle = '#EDE9FE';
-    const tips = [
-      '• Place +Mult cards LEFT of xMult cards.',
-      '• Keep $25 in Treasury for max +$5 Interest.',
-      '• Reroll keeps selected dice locked.',
-      '• Every 3rd chapter has a Boss Curse.'
+    ctx.font = '800 12px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText('CARD EDITIONS & VOUCHERS ($10)', rx, ey + 8);
+
+    const edList = [
+      ['Foil / Holo / Poly / Neg', '+50 Base / +12 Mult / x1.5 Mult / +1 Dock Slot', '#C084FC'],
+      ['Heavy Cup / Wide Grip', '+1 Pool Die (up to 7) / +1 Combo Die (4-dice hands)', '#2DD4BF'],
+      ['Loaded Wrist / Extra Sleeve', '+1 Reroll per stage / +1 Hand per stage', '#38BDF8'],
+      ['Card Shark / VIP Pass', '+1 Max Card Slot / +1 Bazaar Card Slot', '#FEF08A']
     ];
-    tips.forEach((t, i) => ctx.fillText(t, rx + 14, ey + 48 + i * 21));
+    let vy = ey + 30;
+    for (const [name, txt, col] of edList) {
+      ctx.font = '800 12.5px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = col;
+      ctx.fillText(name, rx, vy);
+      ctx.font = '600 11px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = '#EDE9FE';
+      ctx.fillText(txt, rx, vy + 15);
+      vy += 38;
+    }
 
     ctx.textAlign = 'center';
     ctx.font = '600 12px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText('Shortcuts: Keys 1–5 Toggle Dice · Space Score · R Reroll · C Unlock · Esc Close', x + w / 2, y + h - 32);
+    ctx.fillText('Shortcuts: Keys 1–7 Toggle Dice · Hover Die to Inspect · Space Score · R Reroll · C Unlock · Esc Close', x + w / 2, y + h - 26);
   }
 }

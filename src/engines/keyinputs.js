@@ -27,7 +27,8 @@ export function findHoveredDieIndex(state, lx, ly) {
     const liftY = d.selected ? -34 : 0;
     const cx = d.x;
     const cy = d.y + liftY;
-    if (Math.abs(lx - cx) <= 58 && Math.abs(ly - cy) <= 58) return i;
+    const halfHit = (d.renderSize || 104) * 0.55;
+    if (Math.abs(lx - cx) <= halfHit && Math.abs(ly - cy) <= halfHit) return i;
   }
   return -1;
 }
@@ -142,7 +143,6 @@ export function initInputListeners(canvas, state, actions) {
   window.addEventListener('pointerup', () => {
     if (state.drag) {
       if (!state.drag.active) {
-        // Short click toggles precision arrow & sell controls
         const uid = state.drag.card.uid;
         state.focusedActiveUid = state.focusedActiveUid === uid ? null : uid;
         sfx.click();
@@ -166,6 +166,7 @@ export function initInputListeners(canvas, state, actions) {
       if (state.modal) {
         sfx.click();
         state.modal = null;
+        state.workshopTarget = null;
       } else if (state.mode === 'PLAYING' || state.mode === 'SHOP') {
         sfx.click();
         state.modal = 'PAUSE';
@@ -184,8 +185,11 @@ export function initInputListeners(canvas, state, actions) {
     }
 
     if (state.mode === 'PLAYING') {
-      if (e.key >= '1' && e.key <= '5') {
-        toggleDieSelection(Number(e.key) - 1);
+      if (e.key >= '1' && e.key <= '7') {
+        const idx = Number(e.key) - 1;
+        if (idx < state.dice.length) {
+          toggleDieSelection(idx);
+        }
       } else if (e.key === ' ' || e.key === 'Enter') {
         e.preventDefault();
         playSelectedHand();

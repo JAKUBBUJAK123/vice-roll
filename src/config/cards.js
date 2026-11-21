@@ -70,9 +70,9 @@ export const CARD_CATALOG = [
   {
     id: '10H', rank: '10', suit: 'hearts', name: '10 of Hearts', rarity: 'uncommon', basePrice: 5,
     tag: 'x1.5 STR',
-    desc: 'x1.5 Mult if the played hand is a Small Straight.',
+    desc: 'x1.5 Mult if the played hand is a Small or Large Straight.',
     evaluate(inst, ctx) {
-      if (ctx.hand.id === 'SMALL_STRAIGHT') {
+      if (ctx.hand.id === 'SMALL_STRAIGHT' || ctx.hand.id === 'LARGE_STRAIGHT') {
         return [{ multMul: 1.5, label: 'x1.5 Mult', color: COLORS.multLight, sfx: 'xmult' }];
       }
       return [];
@@ -105,10 +105,10 @@ export const CARD_CATALOG = [
   },
   {
     id: 'KD', rank: 'K', suit: 'diamonds', name: 'King of Diamonds', rarity: 'rare', basePrice: 6,
-    tag: 'x3 TRIPS',
-    desc: 'x3 Mult if the played hand is Three of a Kind (or Perfect 18).',
+    tag: 'x3 TRIPS+',
+    desc: 'x3 Mult if the played hand is Three of a Kind, Perfect 18, or Four of a Kind.',
     evaluate(inst, ctx) {
-      if (ctx.hand.id === 'THREE_OF_A_KIND' || ctx.hand.id === 'PERFECT_18') {
+      if (ctx.hand.id === 'THREE_OF_A_KIND' || ctx.hand.id === 'PERFECT_18' || ctx.hand.id === 'FOUR_OF_A_KIND') {
         return [{ multMul: 3, label: 'x3 Mult', color: COLORS.multLight, sfx: 'xmult' }];
       }
       return [];
@@ -197,11 +197,11 @@ export const CARD_CATALOG = [
   {
     id: '3C', rank: '3', suit: 'clubs', name: '3 of Clubs', rarity: 'uncommon', basePrice: 5,
     tag: 'x1.5 UNIQ',
-    desc: 'x1.5 Mult if 3 dice are played and all 3 show different numbers.',
+    desc: 'x1.5 Mult if at least 3 dice are played and all show different numbers.',
     evaluate(inst, ctx) {
-      if (ctx.playedDice.length === 3) {
+      if (ctx.playedDice.length >= 3) {
         const vals = new Set(ctx.playedDice.map(d => d.value));
-        if (vals.size === 3) {
+        if (vals.size === ctx.playedDice.length) {
           return [{ multMul: 1.5, label: 'x1.5 Mult', color: COLORS.multLight, sfx: 'xmult' }];
         }
       }
