@@ -11,6 +11,27 @@ export function lerp(a, b, t) {
   return a + (b - a) * t;
 }
 
+let diceSpriteImg = null;
+let diceSpriteReady = false;
+if (typeof Image !== 'undefined') {
+  diceSpriteImg = new Image();
+  diceSpriteImg.onload = () => { diceSpriteReady = true; };
+  diceSpriteImg.src = new URL('../assets/dice/dice_spritesheet.png', import.meta.url).href;
+}
+
+function drawDiceSpriteFrame(ctx, faceVal, half, size) {
+  const frameIdx = clamp(Math.round(faceVal) - 1, 0, 5);
+  const frameSize = 32;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(
+    diceSpriteImg,
+    frameIdx * frameSize, 0, frameSize, frameSize,
+    -half, -half, size, size
+  );
+  ctx.restore();
+}
+
 // Offscreen subtle felt grain pattern
 let feltPatternCanvas = null;
 
@@ -859,71 +880,88 @@ export function drawDieFaceMini(ctx, face, cx, cy, size, opts = {}) {
   ctx.save();
   ctx.translate(cx, cy);
 
-  // Outer shadow/lip
-  tracePixelRect(ctx, -half, -half + 3, size, size, 10);
-  ctx.fillStyle = modMeta ? modMeta.border : COLORS.ivoryDeep;
-  ctx.fill();
-
-  // Main face background
-  tracePixelRect(ctx, -half, -half, size, size, 10);
-  const grad = ctx.createLinearGradient(-half, -half, half, half);
-  if (face.mod === 'glass') {
-    grad.addColorStop(0, '#E0F2FE');
-    grad.addColorStop(0.5, '#A5F3FC');
-    grad.addColorStop(1, '#38BDF8');
-  } else if (face.mod === 'gold') {
-    grad.addColorStop(0, '#FEF9C3');
-    grad.addColorStop(0.6, '#FDE047');
-    grad.addColorStop(1, '#CA8A04');
-  } else if (face.mod === 'mult') {
-    grad.addColorStop(0, '#FFF1F2');
-    grad.addColorStop(0.7, '#FECDD3');
-    grad.addColorStop(1, '#FB7185');
-  } else if (face.mod === 'chips') {
-    grad.addColorStop(0, '#F0F9FF');
-    grad.addColorStop(0.7, '#BAE6FD');
-    grad.addColorStop(1, '#38BDF8');
-  } else if (face.mod === 'wild') {
-    grad.addColorStop(0, '#FAF5FF');
-    grad.addColorStop(0.6, '#F5D0FE');
-    grad.addColorStop(1, '#E879F9');
-  } else {
-    grad.addColorStop(0, '#FFFDF7');
-    grad.addColorStop(0.65, COLORS.ivory);
-    grad.addColorStop(1, COLORS.ivoryShade);
-  }
-  ctx.fillStyle = grad;
-  ctx.fill();
-
-  // Border
-  tracePixelRect(ctx, -half + 0.5, -half + 0.5, size - 1, size - 1, 10);
-  ctx.strokeStyle = (selected || hovered)
-    ? COLORS.brassBright
-    : (modMeta ? modMeta.border : 'rgba(24, 34, 48, 0.65)');
-  ctx.lineWidth = (selected || hovered) ? 2.5 : (modMeta ? 2 : 1.5);
-  ctx.stroke();
-
-  // Pips or forged high-value numeral
-  const pipTable = getDicePipCoords(size * 0.24);
-  const pipCoords = pipTable[val];
-  const pipColor = modMeta
-    ? modMeta.bg
-    : (val === 1 ? COLORS.suitHearts : '#1A2433');
-
-  if (pipCoords && val <= 9) {
-    const pipR = val === 1 ? size * 0.115 : (val > 6 ? size * 0.072 : size * 0.086);
-    for (const [ox, oy] of pipCoords) {
-      ctx.beginPath();
-      ctx.arc(ox, oy, pipR, 0, Math.PI * 2);
-      ctx.fillStyle = pipColor;
+  if (diceSpriteReady && val >= 1 && val <= 6) {
+    drawDiceSpriteFrame(ctx, val, half, size);
+    if (modMeta) {
+      tracePixelRect(ctx, -half + 1, -half + 1, size - 2, size - 2, 8);
+      ctx.fillStyle = modMeta.color;
+      ctx.globalAlpha = 0.28;
       ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    if (selected || hovered || modMeta) {
+      tracePixelRect(ctx, -half + 0.5, -half + 0.5, size - 1, size - 1, 8);
+      ctx.strokeStyle = (selected || hovered) ? COLORS.brassBright : modMeta.border;
+      ctx.lineWidth = (selected || hovered) ? 2.5 : 2;
+      ctx.stroke();
     }
   } else {
-    ctx.fillStyle = pipColor;
-    ctx.font = `900 ${Math.round(size * 0.42)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(String(val), 0, 0);
+    // Outer shadow/lip
+    tracePixelRect(ctx, -half, -half + 3, size, size, 10);
+    ctx.fillStyle = modMeta ? modMeta.border : COLORS.ivoryDeep;
+    ctx.fill();
+
+    // Main face background
+    tracePixelRect(ctx, -half, -half, size, size, 10);
+    const grad = ctx.createLinearGradient(-half, -half, half, half);
+    if (face.mod === 'glass') {
+      grad.addColorStop(0, '#E0F2FE');
+      grad.addColorStop(0.5, '#A5F3FC');
+      grad.addColorStop(1, '#38BDF8');
+    } else if (face.mod === 'gold') {
+      grad.addColorStop(0, '#FEF9C3');
+      grad.addColorStop(0.6, '#FDE047');
+      grad.addColorStop(1, '#CA8A04');
+    } else if (face.mod === 'mult') {
+      grad.addColorStop(0, '#FFF1F2');
+      grad.addColorStop(0.7, '#FECDD3');
+      grad.addColorStop(1, '#FB7185');
+    } else if (face.mod === 'chips') {
+      grad.addColorStop(0, '#F0F9FF');
+      grad.addColorStop(0.7, '#BAE6FD');
+      grad.addColorStop(1, '#38BDF8');
+    } else if (face.mod === 'wild') {
+      grad.addColorStop(0, '#FAF5FF');
+      grad.addColorStop(0.6, '#F5D0FE');
+      grad.addColorStop(1, '#E879F9');
+    } else {
+      grad.addColorStop(0, '#FFFDF7');
+      grad.addColorStop(0.65, COLORS.ivory);
+      grad.addColorStop(1, COLORS.ivoryShade);
+    }
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Border
+    tracePixelRect(ctx, -half + 0.5, -half + 0.5, size - 1, size - 1, 10);
+    ctx.strokeStyle = (selected || hovered)
+      ? COLORS.brassBright
+      : (modMeta ? modMeta.border : 'rgba(24, 34, 48, 0.65)');
+    ctx.lineWidth = (selected || hovered) ? 2.5 : (modMeta ? 2 : 1.5);
+    ctx.stroke();
+
+    // Pips or forged high-value numeral
+    const pipTable = getDicePipCoords(size * 0.24);
+    const pipCoords = pipTable[val];
+    const pipColor = modMeta
+      ? modMeta.bg
+      : (val === 1 ? COLORS.suitHearts : '#1A2433');
+
+    if (pipCoords && val <= 9) {
+      const pipR = val === 1 ? size * 0.115 : (val > 6 ? size * 0.072 : size * 0.086);
+      for (const [ox, oy] of pipCoords) {
+        ctx.beginPath();
+        ctx.arc(ox, oy, pipR, 0, Math.PI * 2);
+        ctx.fillStyle = pipColor;
+        ctx.fill();
+      }
+    } else {
+      ctx.fillStyle = pipColor;
+      ctx.font = `900 ${Math.round(size * 0.42)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(val), 0, 0);
+    }
   }
 
   // Value > 6 corner numeral badge
@@ -998,76 +1036,7 @@ export function drawDie(ctx, state, die, isTitle = false, debuffed = false) {
     ctx.globalAlpha = 1;
   }
 
-  // 3D beveled side lip
-  tracePixelRect(ctx, -half, -half + 7, size, size, 14);
-  ctx.fillStyle = debuffed ? '#6B4848' : (modMeta ? modMeta.border : COLORS.ivoryDeep);
-  ctx.fill();
-
-  // Main die face
-  tracePixelRect(ctx, -half, -half, size, size, 14);
-  const grad = ctx.createLinearGradient(-half, -half, half, half);
-  if (debuffed) {
-    grad.addColorStop(0, '#D4B8B8');
-    grad.addColorStop(1, '#A98888');
-  } else if (activeMod === 'glass') {
-    grad.addColorStop(0, '#ECFEFF');
-    grad.addColorStop(0.5, '#A5F3FC');
-    grad.addColorStop(1, '#38BDF8');
-  } else if (activeMod === 'gold') {
-    grad.addColorStop(0, '#FEF9C3');
-    grad.addColorStop(0.6, '#FDE047');
-    grad.addColorStop(1, '#CA8A04');
-  } else if (activeMod === 'mult') {
-    grad.addColorStop(0, '#FFF1F2');
-    grad.addColorStop(0.65, '#FFE4E6');
-    grad.addColorStop(1, '#FDA4AF');
-  } else if (activeMod === 'chips') {
-    grad.addColorStop(0, '#F0F9FF');
-    grad.addColorStop(0.65, '#E0F2FE');
-    grad.addColorStop(1, '#7DD3FC');
-  } else if (activeMod === 'wild') {
-    grad.addColorStop(0, '#FAF5FF');
-    grad.addColorStop(0.6, '#F5D0FE');
-    grad.addColorStop(1, '#E879F9');
-  } else {
-    grad.addColorStop(0, '#FFFDF7');
-    grad.addColorStop(0.65, COLORS.ivory);
-    grad.addColorStop(1, COLORS.ivoryShade);
-  }
-  ctx.fillStyle = grad;
-  ctx.fill();
-
-  // Glass diagonal sheen
-  if (activeMod === 'glass' && !debuffed) {
-    ctx.save();
-    tracePixelRect(ctx, -half, -half, size, size, 14);
-    ctx.clip();
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.38)';
-    ctx.beginPath();
-    ctx.moveTo(-half, -half + 18);
-    ctx.lineTo(-half + 26, -half);
-    ctx.lineTo(half, half - 26);
-    ctx.lineTo(half - 18, half);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-  }
-
-  // Recessed inner bevel square
-  tracePixelRect(ctx, -half + 7, -half + 7, size - 14, size - 14, 10);
-  ctx.strokeStyle = modMeta ? modMeta.color : 'rgba(255,255,255,0.65)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // Crisp outer outline
-  tracePixelRect(ctx, -half + 0.5, -half + 0.5, size - 1, size - 1, 14);
-  ctx.strokeStyle = die.selected
-    ? COLORS.brassBright
-    : (modMeta ? modMeta.border : 'rgba(24, 34, 48, 0.65)');
-  ctx.lineWidth = die.selected ? 2.5 : (modMeta ? 2.5 : 2);
-  ctx.stroke();
-
-  // Pips (or high forged value)
+  // Resolve displayed value (tumble animation or actual value)
   let val = die.value;
   if (isTumbling) {
     if (Array.isArray(die.faces) && die.faces.length > 0) {
@@ -1076,32 +1045,138 @@ export function drawDie(ctx, state, die, isTitle = false, debuffed = false) {
       val = 1 + ((Math.floor(state.time * 24) + die.id) % DICE_SIDES);
     }
   }
-  const pOff = size * 0.255;
-  const pipTable = getDicePipCoords(pOff);
-  const pipCoords = pipTable[val];
-  const pipColor = debuffed
-    ? '#5C2626'
-    : (modMeta ? modMeta.bg : (val === 1 ? COLORS.suitHearts : '#1A2433'));
 
-  if (pipCoords && val <= 9) {
-    const pipR = val === 1 ? size * 0.125 : (val > 6 ? size * 0.076 : size * 0.092);
-    for (const [ox, oy] of pipCoords) {
-      ctx.beginPath();
-      ctx.arc(ox, oy + 1.5, pipR, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,0.55)';
-      ctx.fill();
+  if (diceSpriteReady && val >= 1 && val <= 6) {
+    drawDiceSpriteFrame(ctx, val, half, size);
 
-      ctx.beginPath();
-      ctx.arc(ox, oy, pipR, 0, Math.PI * 2);
-      ctx.fillStyle = pipColor;
+    if (debuffed) {
+      tracePixelRect(ctx, -half + 2, -half + 2, size - 4, size - 4, 12);
+      ctx.fillStyle = 'rgba(120, 20, 30, 0.42)';
       ctx.fill();
+    } else if (modMeta) {
+      tracePixelRect(ctx, -half + 2, -half + 2, size - 4, size - 4, 12);
+      ctx.fillStyle = modMeta.color;
+      ctx.globalAlpha = 0.25;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      tracePixelRect(ctx, -half + 0.5, -half + 0.5, size - 1, size - 1, 14);
+      ctx.strokeStyle = modMeta.border;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    }
+
+    if (activeMod === 'glass' && !debuffed) {
+      ctx.save();
+      tracePixelRect(ctx, -half, -half, size, size, 14);
+      ctx.clip();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.34)';
+      ctx.beginPath();
+      ctx.moveTo(-half, -half + 18);
+      ctx.lineTo(-half + 26, -half);
+      ctx.lineTo(half, half - 26);
+      ctx.lineTo(half - 18, half);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
     }
   } else {
-    ctx.fillStyle = pipColor;
-    ctx.font = `900 ${Math.round(size * 0.44)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(String(val), 0, 2);
+    // 3D beveled side lip
+    tracePixelRect(ctx, -half, -half + 7, size, size, 14);
+    ctx.fillStyle = debuffed ? '#6B4848' : (modMeta ? modMeta.border : COLORS.ivoryDeep);
+    ctx.fill();
+
+    // Main die face
+    tracePixelRect(ctx, -half, -half, size, size, 14);
+    const grad = ctx.createLinearGradient(-half, -half, half, half);
+    if (debuffed) {
+      grad.addColorStop(0, '#D4B8B8');
+      grad.addColorStop(1, '#A98888');
+    } else if (activeMod === 'glass') {
+      grad.addColorStop(0, '#ECFEFF');
+      grad.addColorStop(0.5, '#A5F3FC');
+      grad.addColorStop(1, '#38BDF8');
+    } else if (activeMod === 'gold') {
+      grad.addColorStop(0, '#FEF9C3');
+      grad.addColorStop(0.6, '#FDE047');
+      grad.addColorStop(1, '#CA8A04');
+    } else if (activeMod === 'mult') {
+      grad.addColorStop(0, '#FFF1F2');
+      grad.addColorStop(0.65, '#FFE4E6');
+      grad.addColorStop(1, '#FDA4AF');
+    } else if (activeMod === 'chips') {
+      grad.addColorStop(0, '#F0F9FF');
+      grad.addColorStop(0.65, '#E0F2FE');
+      grad.addColorStop(1, '#7DD3FC');
+    } else if (activeMod === 'wild') {
+      grad.addColorStop(0, '#FAF5FF');
+      grad.addColorStop(0.6, '#F5D0FE');
+      grad.addColorStop(1, '#E879F9');
+    } else {
+      grad.addColorStop(0, '#FFFDF7');
+      grad.addColorStop(0.65, COLORS.ivory);
+      grad.addColorStop(1, COLORS.ivoryShade);
+    }
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Glass diagonal sheen
+    if (activeMod === 'glass' && !debuffed) {
+      ctx.save();
+      tracePixelRect(ctx, -half, -half, size, size, 14);
+      ctx.clip();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.38)';
+      ctx.beginPath();
+      ctx.moveTo(-half, -half + 18);
+      ctx.lineTo(-half + 26, -half);
+      ctx.lineTo(half, half - 26);
+      ctx.lineTo(half - 18, half);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Recessed inner bevel square
+    tracePixelRect(ctx, -half + 7, -half + 7, size - 14, size - 14, 10);
+    ctx.strokeStyle = modMeta ? modMeta.color : 'rgba(255,255,255,0.65)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Crisp outer outline
+    tracePixelRect(ctx, -half + 0.5, -half + 0.5, size - 1, size - 1, 14);
+    ctx.strokeStyle = die.selected
+      ? COLORS.brassBright
+      : (modMeta ? modMeta.border : 'rgba(24, 34, 48, 0.65)');
+    ctx.lineWidth = die.selected ? 2.5 : (modMeta ? 2.5 : 2);
+    ctx.stroke();
+
+    // Pips (or high forged value)
+    const pOff = size * 0.255;
+    const pipTable = getDicePipCoords(pOff);
+    const pipCoords = pipTable[val];
+    const pipColor = debuffed
+      ? '#5C2626'
+      : (modMeta ? modMeta.bg : (val === 1 ? COLORS.suitHearts : '#1A2433'));
+
+    if (pipCoords && val <= 9) {
+      const pipR = val === 1 ? size * 0.125 : (val > 6 ? size * 0.076 : size * 0.092);
+      for (const [ox, oy] of pipCoords) {
+        ctx.beginPath();
+        ctx.arc(ox, oy + 1.5, pipR, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(ox, oy, pipR, 0, Math.PI * 2);
+        ctx.fillStyle = pipColor;
+        ctx.fill();
+      }
+    } else {
+      ctx.fillStyle = pipColor;
+      ctx.font = `900 ${Math.round(size * 0.44)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(val), 0, 2);
+    }
   }
 
   // Forged value > 6 top-left numeric badge
