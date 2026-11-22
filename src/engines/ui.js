@@ -5,6 +5,7 @@ import { SUIT_SYMBOLS, CARD_BY_ID } from '../config/cards.js';
 import { VOUCHER_COST } from '../config/vouchers.js';
 import { DICE_SIDES, FACE_MOD_META } from '../config/dices.js';
 import { POTION_BY_ID, MAX_POTION_SLOTS } from '../config/potions.js';
+import { ARTEFACT_BY_ID } from '../config/artefacts.js';
 import {
   clamp,
   tracePixelRect,
@@ -12,6 +13,7 @@ import {
   drawSuitIcon,
   drawGemstoneIcon,
   drawPotionIcon,
+  drawArtefactIcon,
   wrapLines,
   getSuitColor,
   drawDie,
@@ -709,7 +711,7 @@ export function drawCashOutPanel(ctx, state, uiCtx) {
   const { getStageLabel, claimCashOut } = uiCtx;
   const d = state.cashOutData;
   if (!d) return;
-  const extraRows = (d.cardRerollsBonus > 0 ? 1 : 0) + (d.cardHandsBonus > 0 ? 1 : 0);
+  const extraRows = (d.cardRerollsBonus > 0 ? 1 : 0) + (d.cardHandsBonus > 0 ? 1 : 0) + (d.artefactBonus > 0 ? 1 : 0);
   const w = 600, h = 344 + extraRows * 38;
   const x = (1280 - w) / 2, y = 186 - extraRows * 19;
   drawBevelPanel(ctx, x, y, w, h, {
@@ -740,6 +742,9 @@ export function drawCashOutPanel(ctx, state, uiCtx) {
   }
   if (d.cardHandsBonus > 0) {
     rows.push({ label: `Card Bonus: Unused Hands (${d.handsCount})`, val: `+$${d.cardHandsBonus}`, show: state.cashOutReveal >= 0.75 });
+  }
+  if (d.artefactBonus > 0) {
+    rows.push({ label: `Artefact Bonus (Greed Curse)`, val: `+$${d.artefactBonus}`, show: state.cashOutReveal >= 0.75 });
   }
 
   let ry = y + 96;
@@ -1600,7 +1605,8 @@ export function drawOverlayModal(ctx, state, uiCtx) {
 }
 
 export function drawPotionTray(ctx, state, uiCtx) {
-  const { usePotion, sellPotion } = uiCtx;
+  const { usePotion, sellPotion, getMaxPotionSlots } = uiCtx;
+  const maxSlots = getMaxPotionSlots ? getMaxPotionSlots() : MAX_POTION_SLOTS;
   const x = 1044, y = 104, w = 220, h = 68;
 
   drawBevelPanel(ctx, x, y, w, h, {
@@ -1615,7 +1621,7 @@ export function drawPotionTray(ctx, state, uiCtx) {
   ctx.textBaseline = 'top';
   ctx.font = '800 10px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = COLORS.brassBright;
-  ctx.fillText(`POTIONS (${state.potions.length}/${MAX_POTION_SLOTS})`, x + 10, y + 6);
+  ctx.fillText(`POTIONS (${state.potions.length}/${maxSlots})`, x + 10, y + 6);
 
   if (state.potionScoreMult > 1) {
     ctx.textAlign = 'right';
@@ -1623,11 +1629,13 @@ export function drawPotionTray(ctx, state, uiCtx) {
     ctx.fillText(`x${state.potionScoreMult} ARMED`, x + w - 10, y + 6);
   }
 
-  const slotW = 62, slotH = 40, gap = 7;
+  const gap = maxSlots >= 4 ? 5 : 7;
+  const slotW = Math.floor((w - 20 - (maxSlots - 1) * gap) / maxSlots);
+  const slotH = 40;
   const startX = x + 10;
   const sy = y + 21;
 
-  for (let i = 0; i < MAX_POTION_SLOTS; i++) {
+  for (let i = 0; i < maxSlots; i++) {
     const sx = startX + i * (slotW + gap);
     const pot = state.potions[i] || null;
     const def = pot ? POTION_BY_ID[pot.id] : null;
@@ -1733,7 +1741,8 @@ export function drawPotionTooltip(ctx, state, uiCtx) {
 }
 
 export function drawPotionPickScreen(ctx, state, uiCtx) {
-  const { pickPotionReward, enterShop } = uiCtx;
+  const { pickPotionReward, enterShop, getMaxPotionSlots } = uiCtx;
+  const maxSlots = getMaxPotionSlots ? getMaxPotionSlots() : MAX_POTION_SLOTS;
   const w = 780, h = 356;
   const x = (1280 - w) / 2, y = 182;
 
@@ -1753,11 +1762,11 @@ export function drawPotionPickScreen(ctx, state, uiCtx) {
 
   ctx.font = '600 13px ui-sans-serif, system-ui, sans-serif';
   ctx.fillStyle = COLORS.textMuted;
-  const full = state.potions.length >= MAX_POTION_SLOTS;
+  const full = state.potions.length >= maxSlots;
   ctx.fillText(
     full
-      ? 'Potion belt is full (3/3). Sell a potion above to make room, or skip to Bazaar.'
-      : 'Pick 1 of 3 consumable potions to store in your belt (max 3 slots).',
+      ? `Potion belt is full (${maxSlots}/${maxSlots}). Sell a potion above to make room, or skip to Bazaar.`
+      : `Pick 1 of 3 consumable potions to store in your belt (max ${maxSlots} slots).`,
     x + w / 2,
     y + 52
   );
@@ -1795,7 +1804,7 @@ export function drawPotionPickScreen(ctx, state, uiCtx) {
     });
 
     registerButton(ctx, state, `pick_potion_${idx}`, px + 24, cy + cardH - 42, cardW - 48, 30,
-      full ? 'BELT FULL (3/3)' : 'TAKE POTION', {
+      full ? `BELT FULL (${maxSlots}/${maxSlots})` : 'TAKE POTION', {
         fill: full ? COLORS.railPanel : '#0F766E',
         hoverFill: '#0D9488',
         border: full ? COLORS.railBorder : '#5EEAD4',
@@ -1807,6 +1816,174 @@ export function drawPotionPickScreen(ctx, state, uiCtx) {
   });
 
   registerButton(ctx, state, 'skip_potion_pick', x + w / 2 - 120, y + h - 54, 240, 38, 'SKIP → ENTER BAZAAR', {
+    fill: COLORS.railPanel,
+    hoverFill: '#2D224A',
+    border: COLORS.brass,
+    fontSize: 13,
+    onClick: () => { sfx.click(); enterShop(); }
+  });
+}
+
+// ============================================================================
+// ARTEFACTS TRAY (TOP-LEFT, MIRRORS POTION TRAY), TOOLTIP & BOSS PICKER
+// ============================================================================
+export function drawArtefactTray(ctx, state) {
+  const x = 16, y = 104, w = 220, h = 68;
+
+  drawBevelPanel(ctx, x, y, w, h, {
+    fill: 'rgba(18, 12, 32, 0.90)',
+    border: state.artefacts.length > 0 ? COLORS.brass : COLORS.railBorderBright,
+    lip: 3,
+    r: 10
+  });
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.font = '800 10px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = COLORS.brassBright;
+  ctx.fillText(`ARTEFACTS (${state.artefacts.length})`, x + 10, y + 6);
+
+  const slots = Math.max(4, state.artefacts.length);
+  const gap = 5;
+  const slotW = Math.floor((w - 20 - (slots - 1) * gap) / slots);
+  const slotH = 40;
+  const startX = x + 10;
+  const sy = y + 21;
+
+  for (let i = 0; i < slots; i++) {
+    const sx = startX + i * (slotW + gap);
+    const artId = state.artefacts[i] || null;
+    const def = artId ? ARTEFACT_BY_ID[artId] : null;
+    const rect = { x: sx, y: sy, w: slotW, h: slotH };
+    const hovered = def && !state.modal && hitTest(state.mouseX, state.mouseY, rect);
+
+    if (hovered) {
+      state.hoveredArtefact = { def, idx: i, rect };
+    }
+
+    drawBevelPanel(ctx, sx, sy, slotW, slotH, {
+      fill: def ? (hovered ? '#1E1636' : '#120D22') : 'rgba(9, 6, 18, 0.65)',
+      border: def ? (hovered ? def.color : COLORS.railBorderBright) : '#261D40',
+      lip: def ? 2 : 0,
+      r: 7
+    });
+
+    if (def) {
+      drawArtefactIcon(ctx, def.id, sx + slotW / 2, sy + slotH / 2 + 1, Math.min(15, slotW * 0.34), state.time);
+    }
+  }
+}
+
+export function drawArtefactTooltip(ctx, state, uiCtx) {
+  const ha = state.hoveredArtefact;
+  if (!ha || state.modal) return;
+  const { LOGICAL_W, LOGICAL_H } = uiCtx;
+  const { def, rect } = ha;
+
+  const tipW = 272;
+  ctx.font = '600 12.5px ui-sans-serif, system-ui, sans-serif';
+  const descLines = wrapLines(ctx, def.desc, tipW - 26);
+  const tipH = 68 + descLines.length * 17;
+
+  const tx = clamp(rect.x + rect.w / 2 - tipW / 2, 18, LOGICAL_W - tipW - 18);
+  const ty = clamp(rect.y + rect.h + 10, 14, LOGICAL_H - tipH - 14);
+
+  drawBevelPanel(ctx, tx, ty, tipW, tipH, {
+    fill: 'rgba(14, 10, 26, 0.97)',
+    border: def.color,
+    lip: 4,
+    r: 10,
+    glow: 'rgba(0,0,0,0.65)'
+  });
+
+  let curY = ty + 12;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.font = '800 14px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = COLORS.textMain;
+  ctx.fillText(def.name, tx + 13, curY);
+
+  ctx.textAlign = 'right';
+  ctx.font = '800 10.5px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = def.color;
+  ctx.fillText(def.short, tx + tipW - 13, curY + 2);
+
+  curY += 24;
+  ctx.textAlign = 'left';
+  ctx.font = '600 12.5px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = '#EDE9FE';
+  for (const line of descLines) {
+    ctx.fillText(line, tx + 13, curY);
+    curY += 17;
+  }
+}
+
+export function drawArtefactPickScreen(ctx, state, uiCtx) {
+  const { pickArtefactReward, enterShop } = uiCtx;
+  const w = 780, h = 364;
+  const x = (1280 - w) / 2, y = 180;
+
+  drawBevelPanel(ctx, x, y, w, h, {
+    fill: 'rgba(18, 12, 32, 0.95)',
+    border: '#FB7185',
+    lip: 6,
+    r: 14,
+    glow: 'rgba(251, 113, 133, 0.25)'
+  });
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.font = '900 24px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = '#FDE047';
+  ctx.fillText('BOSS DEFEATED — CHOOSE AN ARTEFACT', x + w / 2, y + 20);
+
+  ctx.font = '600 13px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = COLORS.textMuted;
+  ctx.fillText('Artefacts grant permanent run-wide powers (some carry a trade-off). Pick 1 of 3:', x + w / 2, y + 52);
+
+  const choices = state.artefactChoices || [];
+  const cardW = 216, cardH = 206, gap = 22;
+  const startX = x + (w - (choices.length * cardW + (choices.length - 1) * gap)) / 2;
+  const cy = y + 86;
+
+  choices.forEach((artId, idx) => {
+    const def = ARTEFACT_BY_ID[artId];
+    if (!def) return;
+    const px = startX + idx * (cardW + gap);
+    const hovered = hitTest(state.mouseX, state.mouseY, { x: px, y: cy, w: cardW, h: cardH });
+
+    drawBevelPanel(ctx, px, cy, cardW, cardH, {
+      fill: hovered ? '#1E1536' : '#120C22',
+      border: hovered ? def.color : COLORS.railBorderBright,
+      lip: 4,
+      r: 12
+    });
+
+    drawArtefactIcon(ctx, def.id, px + cardW / 2, cy + 44, 24, state.time);
+
+    ctx.textAlign = 'center';
+    ctx.font = '800 15px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = def.color;
+    ctx.fillText(def.name, px + cardW / 2, cy + 80);
+
+    ctx.font = '600 12px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = '#EDE9FE';
+    const lines = wrapLines(ctx, def.desc, cardW - 24);
+    lines.forEach((ln, li) => {
+      ctx.fillText(ln, px + cardW / 2, cy + 104 + li * 16);
+    });
+
+    registerButton(ctx, state, `pick_artefact_${idx}`, px + 24, cy + cardH - 42, cardW - 48, 30, 'CLAIM ARTEFACT', {
+      fill: '#9F1239',
+      hoverFill: '#BE123C',
+      border: '#FDA4AF',
+      fontSize: 12,
+      lip: 2,
+      onClick: () => pickArtefactReward(idx)
+    });
+  });
+
+  registerButton(ctx, state, 'skip_artefact_pick', x + w / 2 - 120, y + h - 54, 240, 38, 'SKIP → ENTER BAZAAR', {
     fill: COLORS.railPanel,
     hoverFill: '#2D224A',
     border: COLORS.brass,

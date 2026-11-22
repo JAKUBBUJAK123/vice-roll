@@ -649,6 +649,132 @@ export function drawPotionIcon(ctx, potionId, cx, cy, size = 18, time = 0) {
   ctx.restore();
 }
 
+export function drawArtefactIcon(ctx, artefactId, cx, cy, size = 18, time = 0) {
+  const s = size;
+  const pulse = 0.5 + 0.5 * Math.sin(time * 3.0 + (artefactId === 'SLIMEBALL' ? 1.2 : artefactId === 'GREED_CURSE' ? 2.4 : 0));
+  const glows = {
+    RED_CROWN: 'rgba(251, 113, 133, 0.36)',
+    GREED_CURSE: 'rgba(251, 191, 36, 0.36)',
+    SLIMEBALL: 'rgba(74, 222, 128, 0.36)',
+    ALCHEMY_BELT: 'rgba(56, 189, 248, 0.36)'
+  };
+
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  const aura = ctx.createRadialGradient(0, 0, 2, 0, 0, s * 1.25);
+  aura.addColorStop(0, glows[artefactId] || 'rgba(245, 205, 121, 0.3)');
+  aura.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = aura;
+  ctx.beginPath();
+  ctx.arc(0, 0, s * 1.25, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (artefactId === 'RED_CROWN') {
+    const grad = ctx.createLinearGradient(0, -s * 0.7, 0, s * 0.6);
+    grad.addColorStop(0, '#FDA4AF');
+    grad.addColorStop(0.5, '#E11D48');
+    grad.addColorStop(1, '#881337');
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.75, s * 0.52);
+    ctx.lineTo(-s * 0.85, -s * 0.35);
+    ctx.lineTo(-s * 0.36, s * 0.05);
+    ctx.lineTo(0, -s * 0.68);
+    ctx.lineTo(s * 0.36, s * 0.05);
+    ctx.lineTo(s * 0.85, -s * 0.35);
+    ctx.lineTo(s * 0.75, s * 0.52);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = '#FDE047';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    // Crown jewels
+    ctx.fillStyle = '#FEF08A';
+    [[-s * 0.85, -s * 0.38], [0, -s * 0.7], [s * 0.85, -s * 0.38]].forEach(([jx, jy]) => {
+      ctx.beginPath();
+      ctx.arc(jx, jy, s * 0.11, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.arc(0, s * 0.22, s * 0.14, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (artefactId === 'GREED_CURSE') {
+    // Cursed golden coin/medallion with dark eye slit
+    const grad = ctx.createRadialGradient(-s * 0.2, -s * 0.2, 2, 0, 0, s * 0.82);
+    grad.addColorStop(0, '#FEF08A');
+    grad.addColorStop(0.65, '#D97706');
+    grad.addColorStop(1, '#78350F');
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 0.78, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = '#FDE047';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    // Inner cursed rune / eye
+    ctx.fillStyle = '#1E1024';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s * 0.42, s * 0.22, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = `rgba(251, 113, 133, ${0.75 + pulse * 0.25})`;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s * 0.1, s * 0.18, 0, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (artefactId === 'SLIMEBALL') {
+    // Glossy green slime orb with floating bubbles
+    const grad = ctx.createRadialGradient(-s * 0.25, -s * 0.25, 2, 0, 0, s * 0.85);
+    grad.addColorStop(0, '#BBF7D0');
+    grad.addColorStop(0.5, '#22C55E');
+    grad.addColorStop(1, '#15803D');
+    ctx.beginPath();
+    ctx.arc(0, s * 0.06, s * 0.74, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = '#86EFAC';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Specular highlight & inner bubbles
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+    ctx.beginPath();
+    ctx.ellipse(-s * 0.26, -s * 0.24, s * 0.18, s * 0.1, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(220, 252, 231, 0.75)';
+    ctx.beginPath();
+    ctx.arc(s * 0.22, s * (0.22 - pulse * 0.1), s * 0.1, 0, Math.PI * 2);
+    ctx.arc(-s * 0.12, s * 0.34, s * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (artefactId === 'ALCHEMY_BELT') {
+    // Leather/arcane belt buckle with glowing azure vial pouch
+    ctx.fillStyle = '#78350F';
+    tracePixelRect(ctx, -s * 0.84, -s * 0.26, s * 1.68, s * 0.52, 4);
+    ctx.fill();
+    ctx.strokeStyle = '#D97706';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+
+    // Brass buckle
+    ctx.strokeStyle = '#FDE047';
+    ctx.lineWidth = 2.2;
+    ctx.strokeRect(-s * 0.24, -s * 0.34, s * 0.48, s * 0.68);
+
+    // Hanging cyan potion charm
+    ctx.fillStyle = '#38BDF8';
+    ctx.beginPath();
+    ctx.arc(s * 0.42, s * 0.46, s * 0.24, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#E0F2FE';
+    ctx.lineWidth = 1.3;
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
 export function wrapLines(ctx, text, maxW) {
   const words = text.split(' ');
   const lines = [];

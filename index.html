@@ -20,6 +20,7 @@ import { HANDS } from './src/config/hands.js';
 import { CARD_CATALOG, CARD_BY_ID } from './src/config/cards.js';
 import { VOUCHER_COST, VOUCHER_CATALOG } from './src/config/vouchers.js';
 import { POTION_CATALOG, POTION_BY_ID, MAX_POTION_SLOTS } from './src/config/potions.js';
+import { ARTEFACT_CATALOG, ARTEFACT_BY_ID } from './src/config/artefacts.js';
 import {
   DICE_COUNT,
   MAX_DICE_COUNT,
@@ -57,6 +58,9 @@ import {
   drawPotionTray,
   drawPotionTooltip,
   drawPotionPickScreen,
+  drawArtefactTray,
+  drawArtefactTooltip,
+  drawArtefactPickScreen,
   drawTitleScreen,
   drawEndModal,
   drawOverlayModal
@@ -362,7 +366,7 @@ import {
 
     dice: [],
 
-    // Cards & Potions
+    // Cards, Potions & Artefacts
     activeCards: [],
     shopCards: [],
     potions: [],
@@ -370,6 +374,9 @@ import {
     focusedPotionIdx: null,
     hoveredPotion: null,
     potionScoreMult: 1,
+    artefacts: [],
+    artefactChoices: [],
+    hoveredArtefact: null,
     clonePotionSlotIdx: null,
     cashOutData: null,
     cashOutReveal: 0,
@@ -406,9 +413,18 @@ import {
     return MAX_SELECT_DICE + (getVoucherStacks('WIDE_GRIP') > 0 ? 1 : 0);
   }
 
+  function hasArtefact(id) {
+    return Array.isArray(state.artefacts) && state.artefacts.includes(id);
+  }
+
+  function getMaxPotionSlots() {
+    return MAX_POTION_SLOTS + (hasArtefact('ALCHEMY_BELT') ? 1 : 0);
+  }
+
   function getStageMaxHands() {
-    const base = BASE_HANDS + getVoucherStacks('EXTRA_SLEEVE');
-    return (state.activeBoss && state.activeBoss.id === 'THREE_HANDS') ? Math.max(1, base - 1) : base;
+    let base = BASE_HANDS + getVoucherStacks('EXTRA_SLEEVE');
+    if (hasArtefact('GREED_CURSE')) base -= 1;
+    return (state.activeBoss && state.activeBoss.id === 'THREE_HANDS') ? Math.max(1, base - 1) : Math.max(1, base);
   }
 
   function getStageMaxRerolls() {
@@ -491,6 +507,9 @@ import {
     state.focusedPotionIdx = null;
     state.hoveredPotion = null;
     state.potionScoreMult = 1;
+    state.artefacts = [];
+    state.artefactChoices = [];
+    state.hoveredArtefact = null;
     state.clonePotionSlotIdx = null;
     state.usedBossIds = [];
     state.bestHandScore = 0;
@@ -646,6 +665,7 @@ import {
   // 5. DETERMINISTIC SCORING PIPELINE (BASE -> DICE & FACE MODS -> CARDS)
   // =========================================================================
   function isDieDebuffedByBoss(val) {
+    if (val % 2 === 1 && hasArtefact('RED_CROWN')) return true;
     if (!state.activeBoss) return false;
     if (state.activeBoss.id === 'EVEN_ZERO' && val % 2 === 0) return true;
     if (state.activeBoss.id === 'ODD_ZERO' && val % 2 === 1) return true;
@@ -883,7 +903,38 @@ import {
           duration: 0.34
         });
       }
+
+      if (idx === 0 && hasArtefact('RED_CROWN')) {
+        steps.push({
+          type: 'ARTEFACT_EVENT',
+          artefactId: 'RED_CROWN',
+          card: inst,
+          multMul: 4,
+          label: 'Red Crown x4',
+          color: '#FB7185',
+          sfx: 'xmult',
+          duration: 0.36
+        });
+      }
     });
+
+    // Step 2.2: Artefact triggers on scored dice (e.g. Slimeball)
+    if (hasArtefact('SLIMEBALL')) {
+      for (const d of scoredDiceLog) {
+        if (d.value === 4) {
+          steps.push({
+            type: 'ARTEFACT_EVENT',
+            artefactId: 'SLIMEBALL',
+            dieId: d.id,
+            multMul: 2,
+            label: 'Slimeball x2',
+            color: '#4ADE80',
+            sfx: 'xmult',
+            duration: 0.32
+          });
+        }
+      }
+    }
 
     // Step 2.5: Armed Strength Potion multiplier
     if (state.potionScoreMult > 1) {
@@ -933,8 +984,9 @@ import {
       if (step.debuffed) {
         d.flash = 1;
         d.flashColor = COLORS.multRed;
-        state.scoringBanner = state.activeBoss.name + ' blocked ' + val + '!';
-        spawnPopup(d.x, d.y - 68, '0 (Curse)', COLORS.multLight, 20);
+        const fromCrown = (val % 2 === 1) && hasArtefact('RED_CROWN') && !(state.activeBoss && state.activeBoss.id === 'ODD_ZERO');
+        state.scoringBanner = (fromCrown ? 'Red Crown' : state.activeBoss.name) + ' blocked ' + val + '!';
+        spawnPopup(d.x, d.y - 68, fromCrown ? '0 (Crown)' : '0 (Curse)', COLORS.multLight, 20);
         sfx.scoreStep(state.scoringStepCount, 'debuff');
       } else {
         state.chips += val;
@@ -1069,6 +1121,32 @@ import {
       return;
     }
 
+    if (step.type === 'ARTEFACT_EVENT') {
+      const def = ARTEFACT_BY_ID[step.artefactId];
+      state.scoringStepCount++;
+      if (step.multMul) state.mult = Math.round(state.mult * step.multMul * 100) / 100;
+      if (step.card) {
+        step.card.bounce = 1.1;
+        step.card.flash = 1;
+        step.card.pulseColor = step.color;
+        spawnPopup(step.card.x, step.card.y - 54, step.label, step.color, 25);
+        spawnParticles(step.card.x, step.card.y, 16, [step.color, '#FFFFFF', '#FDE047'], 70, 220);
+      } else if (step.dieId !== undefined) {
+        const d = state.dice[step.dieId];
+        if (d) {
+          d.hop = 0.9;
+          d.flash = 1;
+          d.flashColor = step.color;
+          spawnPopup(d.x, d.y - 72, step.label, step.color, 24);
+          spawnParticles(d.x, d.y - 12, 14, [step.color, '#FFFFFF'], 70, 200);
+        }
+      }
+      state.scoringBanner = `${def ? def.name : 'Artefact'}  →  ${step.label}`;
+      addShake(5);
+      sfx.scoreStep(state.scoringStepCount, step.sfx || 'xmult');
+      return;
+    }
+
     if (step.type === 'POTION_MULT') {
       state.scoringStepCount++;
       state.mult = Math.round(state.mult * step.multMul * 100) / 100;
@@ -1174,7 +1252,8 @@ import {
         }
       });
 
-      const total = baseReward + handsBonus + interest + cardRerollsBonus + cardHandsBonus;
+      const artefactBonus = hasArtefact('GREED_CURSE') ? 5 : 0;
+      const total = baseReward + handsBonus + interest + cardRerollsBonus + cardHandsBonus + artefactBonus;
       state.cashOutData = {
         baseReward,
         handsBonus,
@@ -1182,6 +1261,7 @@ import {
         rerollsCount: state.rerollsLeft,
         cardRerollsBonus,
         cardHandsBonus,
+        artefactBonus,
         cardTriggers: cashOutCardTriggers,
         interest,
         total,
@@ -1236,6 +1316,36 @@ import {
       return;
     }
 
+    if (state.stage % 3 === 0) {
+      rollArtefactRewardChoices();
+      if (state.artefactChoices.length > 0) {
+        state.mode = 'ARTEFACT_PICK';
+        sfx.cardSnap();
+        return;
+      }
+    }
+
+    enterShop();
+  }
+
+  function rollArtefactRewardChoices() {
+    const unowned = ARTEFACT_CATALOG.filter(a => !state.artefacts.includes(a.id));
+    for (let i = unowned.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [unowned[i], unowned[j]] = [unowned[j], unowned[i]];
+    }
+    state.artefactChoices = unowned.slice(0, 3).map(a => a.id);
+  }
+
+  function pickArtefactReward(choiceIdx) {
+    if (state.mode !== 'ARTEFACT_PICK') return;
+    const artId = state.artefactChoices[choiceIdx];
+    const def = ARTEFACT_BY_ID[artId];
+    if (!def || state.artefacts.includes(artId)) return;
+    state.artefacts.push(artId);
+    sfx.buyCard();
+    spawnPopup(126, 145, '+ ' + def.name, def.color, 20);
+    spawnParticles(126, 138, 22, [def.color, '#FDE047', '#FFFFFF'], 70, 220);
     enterShop();
   }
 
@@ -1250,9 +1360,10 @@ import {
 
   function pickPotionReward(choiceIdx) {
     if (state.mode !== 'POTION_PICK') return;
-    if (state.potions.length >= MAX_POTION_SLOTS) {
+    const maxSlots = getMaxPotionSlots();
+    if (state.potions.length >= maxSlots) {
       sfx.error();
-      showNotice('Potion belt full (3/3)! Sell a potion or skip.', 1.8);
+      showNotice(`Potion belt full (${maxSlots}/${maxSlots})! Sell a potion or skip.`, 1.8);
       return;
     }
     const pId = state.potionChoices[choiceIdx];
@@ -1672,6 +1783,7 @@ import {
     getUsedCardSlots,
     getBaseCardSlots,
     getMaxCardSlots,
+    getMaxPotionSlots,
     getMaxSelectDice,
     getStageMaxHands,
     getStageMaxRerolls,
@@ -1694,6 +1806,7 @@ import {
     moveActiveCard,
     sellActiveCard,
     pickPotionReward,
+    pickArtefactReward,
     usePotion,
     sellPotion,
     clonePoolDie
@@ -1707,6 +1820,7 @@ import {
     state.hoverButtonId = null;
     state.hoveredCard = null;
     state.hoveredPotion = null;
+    state.hoveredArtefact = null;
     state.hoveredDieIdx = (state.mode === 'PLAYING' && !state.modal)
       ? findHoveredDieIndex(state, state.mouseX, state.mouseY)
       : -1;
@@ -1729,6 +1843,8 @@ import {
         drawCashOutPanel(ctx, state, uiCtx);
       } else if (state.mode === 'POTION_PICK') {
         drawPotionPickScreen(ctx, state, uiCtx);
+      } else if (state.mode === 'ARTEFACT_PICK') {
+        drawArtefactPickScreen(ctx, state, uiCtx);
       } else if (state.mode === 'SHOP') {
         drawShopArena(ctx, state, uiCtx);
       } else if (state.mode === 'VICTORY') {
@@ -1736,12 +1852,14 @@ import {
       } else if (state.mode === 'GAME_OVER') {
         drawEndModal(ctx, state, false, uiCtx);
       }
+      drawArtefactTray(ctx, state);
       drawPotionTray(ctx, state, uiCtx);
     }
 
     drawParticlesAndPopups(ctx, state);
     drawCardTooltip(ctx, state, uiCtx);
     drawPotionTooltip(ctx, state, uiCtx);
+    drawArtefactTooltip(ctx, state, uiCtx);
     drawDieInspectorTooltip(ctx, state, uiCtx);
     drawOverlayModal(ctx, state, uiCtx);
 
@@ -1754,7 +1872,7 @@ import {
     if (state.drag && state.drag.active) cursor = 'grabbing';
     else if (state.hoverButtonId) cursor = 'pointer';
     else if (state.hoveredCard) cursor = state.hoveredCard.zone === 'active' ? 'grab' : 'pointer';
-    else if (state.hoveredPotion) cursor = 'pointer';
+    else if (state.hoveredPotion || state.hoveredArtefact) cursor = 'pointer';
     else if (state.hoveredDieIdx !== -1) cursor = 'pointer';
     canvas.style.cursor = cursor;
   }
