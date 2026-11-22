@@ -98,8 +98,8 @@ export function initInputListeners(canvas, state, actions) {
       }
     }
 
-    // Clicking empty space dismisses card action strip
     state.focusedActiveUid = null;
+    state.focusedPotionIdx = null;
 
     // 3. Check dice click in PLAYING state
     if (state.mode === 'PLAYING') {

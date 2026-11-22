@@ -527,6 +527,128 @@ export function drawGemstoneIcon(ctx, upgradeId, cx, cy, size, time = 0) {
   ctx.restore();
 }
 
+export function drawPotionIcon(ctx, potionId, cx, cy, size = 18, time = 0) {
+  const s = size;
+  const pulse = 0.5 + 0.5 * Math.sin(time * 3.4 + (potionId === 'CLONE' ? 1.5 : potionId === 'CLEANSE' ? 3.0 : 0));
+
+  const themes = {
+    STRENGTH: { glow: 'rgba(251, 113, 133, 0.35)', liquid: '#E11D48', liquidTop: '#FB7185', rim: '#FFE4E6', cork: '#D97706' },
+    CLEANSE:  { glow: 'rgba(52, 211, 153, 0.35)',  liquid: '#059669', liquidTop: '#34D399', rim: '#D1FAE5', cork: '#D97706' }
+  };
+  const t = themes[potionId] || themes.STRENGTH;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  // Subtle aura behind bottle
+  const aura = ctx.createRadialGradient(0, s * 0.15, 2, 0, s * 0.15, s * 1.25);
+  aura.addColorStop(0, t.glow);
+  aura.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = aura;
+  ctx.beginPath();
+  ctx.arc(0, s * 0.15, s * 1.25, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Cork stopper
+  ctx.fillStyle = t.cork;
+  ctx.fillRect(-s * 0.18, -s * 0.96, s * 0.36, s * 0.24);
+  ctx.strokeStyle = '#92400E';
+  ctx.lineWidth = 1.2;
+  ctx.strokeRect(-s * 0.18, -s * 0.96, s * 0.36, s * 0.24);
+
+  // Bottle silhouette path
+  const traceBottle = () => {
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.24, -s * 0.72);
+    ctx.lineTo(s * 0.24, -s * 0.72);
+    ctx.lineTo(s * 0.18, -s * 0.38);
+    if (potionId === 'CLEANSE') {
+      // Tall apothecary diamond-shoulder bottle
+      ctx.lineTo(s * 0.58, -s * 0.08);
+      ctx.lineTo(s * 0.58, s * 0.72);
+      ctx.lineTo(s * 0.36, s * 0.84);
+      ctx.lineTo(-s * 0.36, s * 0.84);
+      ctx.lineTo(-s * 0.58, s * 0.72);
+      ctx.lineTo(-s * 0.58, -s * 0.08);
+    } else {
+      // Round-bellied Strength flask
+      ctx.quadraticCurveTo(s * 0.78, -s * 0.05, s * 0.68, s * 0.45);
+      ctx.quadraticCurveTo(s * 0.58, s * 0.84, 0, s * 0.84);
+      ctx.quadraticCurveTo(-s * 0.58, s * 0.84, -s * 0.68, s * 0.45);
+      ctx.quadraticCurveTo(-s * 0.78, -s * 0.05, -s * 0.18, -s * 0.38);
+    }
+    ctx.lineTo(-s * 0.18, -s * 0.38);
+    ctx.closePath();
+  };
+
+  traceBottle();
+  ctx.fillStyle = 'rgba(12, 18, 30, 0.88)';
+  ctx.fill();
+
+  ctx.save();
+  traceBottle();
+  ctx.clip();
+
+  const liqY = -s * 0.06 + Math.sin(time * 2.8) * (s * 0.03);
+  const grad = ctx.createLinearGradient(0, liqY, 0, s * 0.85);
+  grad.addColorStop(0, t.liquidTop);
+  grad.addColorStop(1, t.liquid);
+  ctx.fillStyle = grad;
+  ctx.fillRect(-s, liqY, s * 2, s * 1.2);
+
+  // Liquid meniscus highlight
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+  ctx.fillRect(-s, liqY, s * 2, Math.max(1.5, s * 0.08));
+
+  // Potion-specific interior emblem / bubbles
+  if (potionId === 'STRENGTH') {
+    // Rising ember bubbles
+    ctx.fillStyle = 'rgba(255, 240, 245, 0.7)';
+    ctx.beginPath();
+    ctx.arc(-s * 0.22, s * (0.35 - pulse * 0.18), s * 0.09, 0, Math.PI * 2);
+    ctx.arc(s * 0.18, s * (0.5 - pulse * 0.14), s * 0.07, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (potionId === 'CLONE') {
+    // Twin glowing orbs
+    ctx.fillStyle = 'rgba(224, 242, 254, 0.82)';
+    ctx.beginPath();
+    ctx.arc(-s * 0.18, s * 0.36, s * 0.12, 0, Math.PI * 2);
+    ctx.arc(s * 0.18, s * 0.36, s * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (potionId === 'CLEANSE') {
+    // 4-point purification star
+    const arm = s * (0.2 + pulse * 0.06);
+    ctx.fillStyle = 'rgba(236, 253, 245, 0.9)';
+    ctx.beginPath();
+    ctx.moveTo(0, s * 0.36 - arm);
+    ctx.lineTo(s * 0.06, s * 0.36 - s * 0.06);
+    ctx.lineTo(arm, s * 0.36);
+    ctx.lineTo(s * 0.06, s * 0.36 + s * 0.06);
+    ctx.lineTo(0, s * 0.36 + arm);
+    ctx.lineTo(-s * 0.06, s * 0.36 + s * 0.06);
+    ctx.lineTo(-arm, s * 0.36);
+    ctx.lineTo(-s * 0.06, s * 0.36 - s * 0.06);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Left glass specular highlight
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+  ctx.fillRect(-s * 0.42, -s * 0.2, s * 0.11, s * 0.8);
+  ctx.restore();
+
+  // Glass outline + lip rim
+  traceBottle();
+  ctx.strokeStyle = t.rim;
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+
+  ctx.fillStyle = t.rim;
+  ctx.fillRect(-s * 0.28, -s * 0.74, s * 0.56, s * 0.09);
+
+  ctx.restore();
+}
+
 export function wrapLines(ctx, text, maxW) {
   const words = text.split(' ');
   const lines = [];

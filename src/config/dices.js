@@ -174,9 +174,12 @@ export function getDynamicDiceLayout(count) {
   if (count === 6) {
     spacing = 132;
     size = 98;
-  } else if (count >= 7) {
+  } else if (count === 7) {
     spacing = 114;
     size = 92;
+  } else if (count >= 8) {
+    spacing = Math.floor(780 / (count - 1));
+    size = Math.max(70, Math.min(90, Math.floor(spacing * 0.82)));
   }
   const totalSpan = (count - 1) * spacing;
   const startX = centerX - totalSpan / 2;

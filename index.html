@@ -19,6 +19,7 @@ import { EDITIONS } from './src/config/editions.js';
 import { HANDS } from './src/config/hands.js';
 import { CARD_CATALOG, CARD_BY_ID } from './src/config/cards.js';
 import { VOUCHER_COST, VOUCHER_CATALOG } from './src/config/vouchers.js';
+import { POTION_CATALOG, POTION_BY_ID, MAX_POTION_SLOTS } from './src/config/potions.js';
 import {
   DICE_COUNT,
   MAX_DICE_COUNT,
@@ -27,6 +28,7 @@ import {
   TITLE_DICE,
   FACE_MOD_META,
   DICE_UPGRADE_CATALOG,
+  getDynamicDiceLayout,
   createPoolDie,
   createFreshDice
 } from './src/config/dices.js';
@@ -52,6 +54,9 @@ import {
   drawCashOutPanel,
   drawShopArena,
   drawCardTooltip,
+  drawPotionTray,
+  drawPotionTooltip,
+  drawPotionPickScreen,
   drawTitleScreen,
   drawEndModal,
   drawOverlayModal
@@ -357,9 +362,15 @@ import {
 
     dice: [],
 
-    // Cards
+    // Cards & Potions
     activeCards: [],
     shopCards: [],
+    potions: [],
+    potionChoices: [],
+    focusedPotionIdx: null,
+    hoveredPotion: null,
+    potionScoreMult: 1,
+    clonePotionSlotIdx: null,
     cashOutData: null,
     cashOutReveal: 0,
 
@@ -475,6 +486,12 @@ import {
     state.workshopDieIdx = 0;
     state.activeCards = [];
     state.shopCards = [];
+    state.potions = [];
+    state.potionChoices = [];
+    state.focusedPotionIdx = null;
+    state.hoveredPotion = null;
+    state.potionScoreMult = 1;
+    state.clonePotionSlotIdx = null;
     state.usedBossIds = [];
     state.bestHandScore = 0;
     state.totalMoneyEarned = 0;
@@ -868,6 +885,15 @@ import {
       }
     });
 
+    // Step 2.5: Armed Strength Potion multiplier
+    if (state.potionScoreMult > 1) {
+      steps.push({
+        type: 'POTION_MULT',
+        multMul: state.potionScoreMult,
+        duration: 0.45
+      });
+    }
+
     // Step 3: Slam total into stage score
     steps.push({
       type: 'TOTAL_SLAM',
@@ -1043,6 +1069,18 @@ import {
       return;
     }
 
+    if (step.type === 'POTION_MULT') {
+      state.scoringStepCount++;
+      state.mult = Math.round(state.mult * step.multMul * 100) / 100;
+      state.potionScoreMult = 1;
+      state.scoringBanner = `Strength Potion  →  x${step.multMul} Score!`;
+      spawnPopup(1154, 150, `x${step.multMul} SCORE!`, '#FB7185', 28);
+      spawnParticles(1154, 138, 22, ['#FB7185', '#FDA4AF', '#FFFFFF'], 80, 240);
+      addShake(7);
+      sfx.scoreStep(state.scoringStepCount, 'xmult');
+      return;
+    }
+
     if (step.type === 'TOTAL_SLAM') {
       const handTotal = Math.round(state.chips * state.mult);
       state.scoringHandTotal = handTotal;
@@ -1190,7 +1228,144 @@ import {
       return;
     }
 
+    if (state.stage % 3 === 2) {
+      rollPotionRewardChoices();
+      state.mode = 'POTION_PICK';
+      state.focusedPotionIdx = null;
+      sfx.cardSnap();
+      return;
+    }
+
     enterShop();
+  }
+
+  function rollPotionRewardChoices() {
+    const shuffled = [...POTION_CATALOG];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    state.potionChoices = shuffled.slice(0, 3).map(p => p.id);
+  }
+
+  function pickPotionReward(choiceIdx) {
+    if (state.mode !== 'POTION_PICK') return;
+    if (state.potions.length >= MAX_POTION_SLOTS) {
+      sfx.error();
+      showNotice('Potion belt full (3/3)! Sell a potion or skip.', 1.8);
+      return;
+    }
+    const pId = state.potionChoices[choiceIdx];
+    const def = POTION_BY_ID[pId];
+    if (!def) return;
+    state.potions.push({ id: pId, bounce: 1, flash: 1 });
+    sfx.buyCard();
+    spawnPopup(1154, 145, '+ ' + def.name, def.color, 20);
+    enterShop();
+  }
+
+  function sellPotion(slotIdx) {
+    const pot = state.potions[slotIdx];
+    if (!pot) return;
+    const def = POTION_BY_ID[pot.id];
+    const price = def ? def.sellPrice : 3;
+    state.potions.splice(slotIdx, 1);
+    state.focusedPotionIdx = null;
+    state.money += price;
+    state.totalMoneyEarned += price;
+    sfx.sellCard();
+    spawnPopup(985, 65, '+$' + price, COLORS.goldLight, 20);
+  }
+
+  function usePotion(slotIdx) {
+    if (state.mode === 'SCORING' || state.modal) return;
+    const pot = state.potions[slotIdx];
+    if (!pot) return;
+
+    if (pot.id === 'STRENGTH') {
+      state.potions.splice(slotIdx, 1);
+      state.focusedPotionIdx = null;
+      state.potionScoreMult = Math.round(state.potionScoreMult * 5);
+      sfx.buyCard();
+      spawnPopup(1154, 148, 'x5 SCORE ARMED!', '#FB7185', 22);
+      spawnParticles(1154, 138, 18, ['#FB7185', '#FDA4AF', '#FFFFFF'], 70, 210);
+      showNotice('Strength Potion active: next played hand scores x5!', 2.2);
+    } else if (pot.id === 'CLONE') {
+      state.focusedPotionIdx = null;
+      state.clonePotionSlotIdx = slotIdx;
+      state.modal = 'CLONE_POTION';
+      sfx.click();
+    } else if (pot.id === 'CLEANSE') {
+      if (state.mode !== 'PLAYING' || !state.activeBoss) {
+        sfx.error();
+        showNotice('No active Boss Curse to cleanse right now!', 1.8);
+        return;
+      }
+      state.potions.splice(slotIdx, 1);
+      state.focusedPotionIdx = null;
+      const oldName = state.activeBoss.name;
+      state.activeBoss = null;
+      sfx.buyCard();
+      spawnPopup(220, 62, 'CURSE CLEANSED!', '#34D399', 22);
+      spawnParticles(220, 56, 22, ['#34D399', '#A7F3D0', '#FFFFFF'], 80, 220);
+      showNotice(`Cleanse Potion removed ${oldName}!`, 2.2);
+      updateLiveHandPreview();
+    }
+  }
+
+  function clonePoolDie(dieIdx, slotIdx) {
+    const src = state.dicePool[dieIdx];
+    if (!src) return;
+    const newId = state.dicePool.length;
+    const clonedPoolDie = {
+      id: newId,
+      faces: src.faces.map(f => ({ value: f.value, mod: f.mod }))
+    };
+    state.dicePool.push(clonedPoolDie);
+
+    if (state.mode === 'PLAYING') {
+      const fIdx = Math.floor(Math.random() * 6);
+      const fObj = clonedPoolDie.faces[fIdx];
+      state.dice.push({
+        id: newId,
+        faces: clonedPoolDie.faces,
+        faceIndex: fIdx,
+        value: fObj.value,
+        effectiveValue: fObj.value,
+        mod: fObj.mod,
+        selected: false,
+        x: 640,
+        y: 220,
+        targetX: 640,
+        targetY: 340,
+        vy: 0,
+        renderSize: 98,
+        tumbleTimer: 0.45,
+        flickerTimer: 0,
+        hop: 1.0,
+        flash: 1.0,
+        flashColor: '#38BDF8',
+        angle: (Math.random() - 0.5) * 1.2,
+        vAngle: (Math.random() - 0.5) * 14,
+        scale: 1
+      });
+      const layout = getDynamicDiceLayout(state.dice.length);
+      state.dice.forEach((d, idx) => {
+        d.targetX = layout.startX + idx * layout.spacing;
+        d.targetY = layout.baseY;
+        d.renderSize = layout.size;
+      });
+      updateLiveHandPreview();
+    }
+
+    if (slotIdx !== null && slotIdx !== undefined && state.potions[slotIdx]) {
+      state.potions.splice(slotIdx, 1);
+    }
+    state.modal = null;
+    state.clonePotionSlotIdx = null;
+    sfx.buyCard();
+    spawnPopup(640, 260, `CLONED DIE #${dieIdx + 1}!`, '#38BDF8', 24);
+    spawnParticles(640, 300, 22, ['#38BDF8', '#BAE6FD', '#FFFFFF'], 80, 240);
   }
 
   function rollAnteVoucherIfNeeded() {
@@ -1517,7 +1692,11 @@ import {
     applyWorkshopUpgrade,
     rerollShop,
     moveActiveCard,
-    sellActiveCard
+    sellActiveCard,
+    pickPotionReward,
+    usePotion,
+    sellPotion,
+    clonePoolDie
   };
 
   function render() {
@@ -1527,6 +1706,7 @@ import {
     state.buttons = [];
     state.hoverButtonId = null;
     state.hoveredCard = null;
+    state.hoveredPotion = null;
     state.hoveredDieIdx = (state.mode === 'PLAYING' && !state.modal)
       ? findHoveredDieIndex(state, state.mouseX, state.mouseY)
       : -1;
@@ -1547,6 +1727,8 @@ import {
         drawPlayArena(ctx, state, uiCtx);
       } else if (state.mode === 'CASH_OUT') {
         drawCashOutPanel(ctx, state, uiCtx);
+      } else if (state.mode === 'POTION_PICK') {
+        drawPotionPickScreen(ctx, state, uiCtx);
       } else if (state.mode === 'SHOP') {
         drawShopArena(ctx, state, uiCtx);
       } else if (state.mode === 'VICTORY') {
@@ -1554,10 +1736,12 @@ import {
       } else if (state.mode === 'GAME_OVER') {
         drawEndModal(ctx, state, false, uiCtx);
       }
+      drawPotionTray(ctx, state, uiCtx);
     }
 
     drawParticlesAndPopups(ctx, state);
     drawCardTooltip(ctx, state, uiCtx);
+    drawPotionTooltip(ctx, state, uiCtx);
     drawDieInspectorTooltip(ctx, state, uiCtx);
     drawOverlayModal(ctx, state, uiCtx);
 
@@ -1570,6 +1754,7 @@ import {
     if (state.drag && state.drag.active) cursor = 'grabbing';
     else if (state.hoverButtonId) cursor = 'pointer';
     else if (state.hoveredCard) cursor = state.hoveredCard.zone === 'active' ? 'grab' : 'pointer';
+    else if (state.hoveredPotion) cursor = 'pointer';
     else if (state.hoveredDieIdx !== -1) cursor = 'pointer';
     canvas.style.cursor = cursor;
   }
