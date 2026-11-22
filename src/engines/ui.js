@@ -706,8 +706,9 @@ export function drawCashOutPanel(ctx, state, uiCtx) {
   const { getStageLabel, claimCashOut } = uiCtx;
   const d = state.cashOutData;
   if (!d) return;
-  const w = 600, h = 344;
-  const x = (1280 - w) / 2, y = 186;
+  const extraRows = (d.cardRerollsBonus > 0 ? 1 : 0) + (d.cardHandsBonus > 0 ? 1 : 0);
+  const w = 600, h = 344 + extraRows * 38;
+  const x = (1280 - w) / 2, y = 186 - extraRows * 19;
   drawBevelPanel(ctx, x, y, w, h, {
     fill: '#140E24',
     border: COLORS.brassBright,
@@ -731,6 +732,12 @@ export function drawCashOutPanel(ctx, state, uiCtx) {
     { label: `Unused Hands (${d.handsCount} × $1)`, val: `+$${d.handsBonus}`, show: state.cashOutReveal >= 0.45 },
     { label: `MONEY Interest ($1 per $5 held, max $5)`, val: `+$${d.interest}`, show: state.cashOutReveal >= 0.75 }
   ];
+  if (d.cardRerollsBonus > 0) {
+    rows.push({ label: `Card Bonus: Rerolls Left (${d.rerollsCount})`, val: `+$${d.cardRerollsBonus}`, show: state.cashOutReveal >= 0.75 });
+  }
+  if (d.cardHandsBonus > 0) {
+    rows.push({ label: `Card Bonus: Unused Hands (${d.handsCount})`, val: `+$${d.cardHandsBonus}`, show: state.cashOutReveal >= 0.75 });
+  }
 
   let ry = y + 96;
   for (const row of rows) {
@@ -1127,7 +1134,10 @@ export function drawCardTooltip(ctx, state, uiCtx) {
     curY += 4;
     ctx.font = '800 12px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = COLORS.goldLight;
-    ctx.fillText(`Current Bonus: +${card.scalingBonus || 0} Mult`, tx + 14, curY);
+    const bonusStr = def.isScalingXMult
+      ? `x${Math.round((1 + (card.scalingBonus || 0)) * 100) / 100} Mult`
+      : `+${card.scalingBonus || 0} Mult`;
+    ctx.fillText(`Current Bonus: ${bonusStr}`, tx + 14, curY);
     curY += 18;
   }
 

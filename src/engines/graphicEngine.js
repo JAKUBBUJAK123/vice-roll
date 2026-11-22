@@ -1284,7 +1284,9 @@ export function drawPlayingCard(ctx, state, inst, cx, cy, w, h, opts = {}) {
   // Mnemonic bottom strip right on the card
   if (showFooterTag) {
     const tagText = def.isScaling && inst.scalingBonus > 0
-      ? `+${inst.scalingBonus} MULT`
+      ? (def.isScalingXMult
+          ? `x${Math.round((1 + inst.scalingBonus) * 100) / 100} MULT`
+          : `+${inst.scalingBonus} MULT`)
       : def.tag;
     const stripH = 22;
     ctx.fillStyle = isNeg

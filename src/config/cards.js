@@ -7,7 +7,6 @@ export const SUIT_SYMBOLS = {
   clubs: '♣'
 };
 
-// 18 Distinct Standard Playing Cards (all 12 prompt cards verbatim + 6 synergistic additions)
 export const CARD_CATALOG = [
   {
     id: 'KS', rank: 'K', suit: 'spades', name: 'King of Spades', rarity: 'rare', basePrice: 6,
@@ -40,7 +39,7 @@ export const CARD_CATALOG = [
   {
     id: '7D', rank: '7', suit: 'diamonds', name: '7 of Diamonds', rarity: 'common', basePrice: 4,
     tag: 'ECON',
-    desc: '+50 Chips and +$2 if the played dice sum to 7 or 14.',
+    desc: '+50 Points and +$2 if the played dice sum to 7 or 14.',
     evaluate(inst, ctx) {
       if (ctx.playedSum === 7 || ctx.playedSum === 14) {
         return [{ chipsAdd: 50, moneyAdd: 2, label: '+50 & +$2', color: COLORS.goldLight, sfx: 'money' }];
@@ -94,11 +93,11 @@ export const CARD_CATALOG = [
   },
   {
     id: 'AS', rank: 'A', suit: 'spades', name: 'Ace of Spades', rarity: 'common', basePrice: 4,
-    tag: 'CHIP',
-    desc: '+100 Chips if all played dice are odd.',
+    tag: 'POINTS',
+    desc: '+100 Points if all played dice are odd.',
     evaluate(inst, ctx) {
       if (ctx.playedDice.length > 0 && ctx.playedDice.every(d => d.value % 2 === 1)) {
-        return [{ chipsAdd: 100, label: '+100 Chips', color: COLORS.chipsLight, sfx: 'chips' }];
+        return [{ chipsAdd: 100, label: '+100 Points', color: COLORS.chipsLight, sfx: 'chips' }];
       }
       return [];
     }
@@ -149,7 +148,7 @@ export const CARD_CATALOG = [
   {
     id: 'QH', rank: 'Q', suit: 'hearts', name: 'Queen of Hearts', rarity: 'rare', basePrice: 6,
     tag: 'MULT',
-    desc: '+30 Chips and +8 Mult for each 6 scored.',
+    desc: '+30 POINTS and +8 Mult for each 6 scored.',
     evaluate(inst, ctx) {
       const events = [];
       for (const d of ctx.scoredDice) {
@@ -162,11 +161,11 @@ export const CARD_CATALOG = [
   },
   {
     id: '4D', rank: '4', suit: 'diamonds', name: '4 of Diamonds', rarity: 'common', basePrice: 4,
-    tag: '+40C DOUBLET+',
-    desc: '+40 Chips if the played hand is a Doublet or better.',
+    tag: 'POINTS',
+    desc: '+40 POINTS if the played hand is a Doublet or better.',
     evaluate(inst, ctx) {
       if (ctx.hand.id !== 'LONE_PIP') {
-        return [{ chipsAdd: 40, label: '+40 Chips', color: COLORS.chipsLight, sfx: 'chips' }];
+        return [{ chipsAdd: 40, label: '+40 Points', color: COLORS.chipsLight, sfx: 'chips' }];
       }
       return [];
     }
@@ -185,11 +184,11 @@ export const CARD_CATALOG = [
   {
     id: 'JD', rank: 'J', suit: 'diamonds', name: 'Jack of Diamonds', rarity: 'uncommon', basePrice: 5,
     tag: 'ECON',
-    desc: '+6 Chips for every $1 in your bankroll when played.',
+    desc: '+6 POINTS for every $1 in your bankroll when played.',
     evaluate(inst, ctx) {
       const bonus = ctx.money * 6;
       if (bonus > 0) {
-        return [{ chipsAdd: bonus, label: '+' + bonus + ' Chips', color: COLORS.chipsLight, sfx: 'chips' }];
+        return [{ chipsAdd: bonus, label: '+' + bonus + ' Points', color: COLORS.chipsLight, sfx: 'chips' }];
       }
       return [];
     }
@@ -225,6 +224,120 @@ export const CARD_CATALOG = [
       }
       return [];
     }
+  },
+  {
+    id: '2H', rank: '2', suit: 'hearts', name: '2 of Hearts', rarity: 'uncommon', basePrice: 5,
+    tag: 'MULT',
+    desc: '+35 Mult when no modified pip was played.',
+    evaluate(inst, ctx) {
+      if (ctx.playedDice.length > 0 && ctx.playedDice.every(d => !d.mod && (d.rawValue ?? d.value) <= 6)) {
+        return [{ multAdd: 35, label: '+35 Mult', color: COLORS.multLight, sfx: 'mult' }];
+      }
+      return [];
+    }
+  },
+  {
+    id: 'KH', rank: 'K', suit: 'hearts', name: 'King of Hearts', rarity: 'rare', basePrice: 6,
+    tag: 'MULT',
+    desc: 'x1.5 Mult for each 6 left on the table (unplayed).',
+    evaluate(inst, ctx) {
+      const events = [];
+      for (const d of (ctx.unplayedDice || [])) {
+        if (d.value === 6) {
+          events.push({ multMul: 1.5, label: 'x1.5 Mult', color: COLORS.multLight, sfx: 'xmult', dieId: d.id });
+        }
+      }
+      return events;
+    }
+  },
+  {
+    id: '2D', rank: '2', suit: 'diamonds', name: '2 of Diamonds', rarity: 'uncommon', basePrice: 5,
+    tag: 'MULT',
+    desc: 'Gains +0.5x Mult permanently whenever a Topaz Stone pip is scored.',
+    isScaling: true,
+    isScalingXMult: true,
+    evaluate(inst, ctx) {
+      const events = [];
+      let goldCount = 0;
+      for (const d of ctx.scoredDice) {
+        if (d.mod === 'gold') {
+          goldCount++;
+          events.push({ scaleAdd: 0.5, label: 'Upgrade +0.5x!', color: COLORS.goldLight, sfx: 'money', dieId: d.id });
+        }
+      }
+      const totalX = Math.round((1 + (inst.scalingBonus || 0) + goldCount * 0.5) * 100) / 100;
+      if (totalX > 1) {
+        events.push({ multMul: totalX, label: 'x' + totalX + ' Mult', color: COLORS.multLight, sfx: 'xmult' });
+      }
+      return events;
+    }
+  },
+  {
+    id: '3D', rank: '3', suit: 'diamonds', name: '3 of Diamonds', rarity: 'common', basePrice: 4,
+    tag: 'ECON',
+    desc: 'Earn +$1 for each Reroll left at the end of a chapter.',
+    cashOutRerolls: 1,
+    evaluate() { return []; }
+  },
+  {
+    id: '8D', rank: '8', suit: 'diamonds', name: '8 of Diamonds', rarity: 'uncommon', basePrice: 5,
+    tag: 'ECON',
+    desc: 'Earn +$2 for each unused Hand left at the end of a chapter.',
+    cashOutHands: 2,
+    evaluate() { return []; }
+  },
+  {
+    id: '2S', rank: '2', suit: 'spades', name: '2 of Spades', rarity: 'rare', basePrice: 6,
+    tag: 'MULT',
+    desc: 'Gains +1x Mult permanently whenever an Emerald Stone shatters.',
+    isScaling: true,
+    isScalingXMult: true,
+    evaluate(inst, ctx) {
+      const events = [];
+      const shatters = ctx.shatteredCount || 0;
+      for (let i = 0; i < shatters; i++) {
+        events.push({ scaleAdd: 1, label: 'Upgrade +1x!', color: COLORS.goldLight, sfx: 'money' });
+      }
+      const totalX = Math.round((1 + (inst.scalingBonus || 0) + shatters) * 100) / 100;
+      if (totalX > 1) {
+        events.push({ multMul: totalX, label: 'x' + totalX + ' Mult', color: COLORS.multLight, sfx: 'xmult' });
+      }
+      return events;
+    }
+  },
+  {
+    id: '3S', rank: '3', suit: 'spades', name: '3 of Spades', rarity: 'uncommon', basePrice: 5,
+    tag: 'ECON',
+    desc: 'Earn +$5 whenever an Emerald Stone shatters.',
+    evaluate(inst, ctx) {
+      const events = [];
+      const shatters = ctx.shatteredCount || 0;
+      for (let i = 0; i < shatters; i++) {
+        events.push({ moneyAdd: 5, label: '+$5', color: COLORS.goldLight, sfx: 'money' });
+      }
+      return events;
+    }
+  },
+  {
+    id: 'QC', rank: 'Q', suit: 'clubs', name: 'Queen of Clubs', rarity: 'rare', basePrice: 6,
+    tag: 'COPY',
+    desc: 'Copies the effect of the card directly to its right.',
+    copyRight: true,
+    evaluate() { return []; }
+  },
+  {
+    id: '7C', rank: '7', suit: 'clubs', name: '7 of Clubs', rarity: 'uncommon', basePrice: 5,
+    tag: 'TRIGGER',
+    desc: 'Retriggers every scored odd die an additional time.',
+    retriggerOdd: true,
+    evaluate() { return []; }
+  },
+  {
+    id: '10C', rank: '10', suit: 'clubs', name: '10 of Clubs', rarity: 'uncommon', basePrice: 5,
+    tag: 'TRIGGER',
+    desc: 'Retriggers every scored even die an additional time.',
+    retriggerEven: true,
+    evaluate() { return []; }
   }
 ];
 
