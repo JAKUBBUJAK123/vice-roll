@@ -137,20 +137,6 @@ export const DICE_UPGRADE_CATALOG = [
   }
 ];
 
-export function getDicePipCoords(pOff) {
-  return {
-    1: [[0, 0]],
-    2: [[-pOff, -pOff], [pOff, pOff]],
-    3: [[-pOff, -pOff], [0, 0], [pOff, pOff]],
-    4: [[-pOff, -pOff], [pOff, -pOff], [-pOff, pOff], [pOff, pOff]],
-    5: [[-pOff, -pOff], [pOff, -pOff], [0, 0], [-pOff, pOff], [pOff, pOff]],
-    6: [[-pOff, -pOff], [pOff, -pOff], [-pOff, 0], [pOff, 0], [-pOff, pOff], [pOff, pOff]],
-    7: [[-pOff, -pOff], [pOff, -pOff], [-pOff, 0], [0, 0], [pOff, 0], [-pOff, pOff], [pOff, pOff]],
-    8: [[-pOff, -pOff], [0, -pOff], [pOff, -pOff], [-pOff, 0], [pOff, 0], [-pOff, pOff], [0, pOff], [pOff, pOff]],
-    9: [[-pOff, -pOff], [0, -pOff], [pOff, -pOff], [-pOff, 0], [0, 0], [pOff, 0], [-pOff, pOff], [0, pOff], [pOff, pOff]]
-  };
-}
-
 export function createDefaultDieFaces() {
   const faces = [];
   for (let s = 1; s <= DICE_SIDES; s++) {
