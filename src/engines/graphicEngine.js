@@ -1,7 +1,7 @@
 import { COLORS } from '../config/colors.js';
 import { EDITIONS } from '../config/editions.js';
 import { CARD_BY_ID } from '../config/cards.js';
-import { DICE_SIDES, DICE_LAYOUT, FACE_MOD_META, getDicePipCoords } from '../config/dices.js';
+import { DICE_SIDES, DICE_LAYOUT, FACE_MOD_META } from '../config/dices.js';
 
 export function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));
@@ -9,6 +9,99 @@ export function clamp(v, lo, hi) {
 
 export function lerp(a, b, t) {
   return a + (b - a) * t;
+}
+
+let diceSpriteImg = null;
+let diceSpriteReady = false;
+if (typeof Image !== 'undefined') {
+  diceSpriteImg = new Image();
+  diceSpriteImg.onload = () => { diceSpriteReady = true; };
+  diceSpriteImg.src = new URL('../assets/dice/dice_spritesheet.png', import.meta.url).href;
+}
+
+function drawDiceSpriteFrame(ctx, faceVal, half, size) {
+  const frameIdx = clamp(Math.round(faceVal) - 1, 0, 5);
+  const frameSize = 32;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(
+    diceSpriteImg,
+    frameIdx * frameSize, 0, frameSize, frameSize,
+    -half, -half, size, size
+  );
+  ctx.restore();
+}
+const CARD_SPRITE_W = 64;
+const CARD_SPRITE_H = 88;
+const CARD_RANK_ORDER = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+const CARD_SUIT_ROW = { hearts: 0, diamonds: 1, clubs: 2, spades: 3 };
+
+let cardsSpriteImg = null;
+let cardsSpriteReady = false;
+if (typeof Image !== 'undefined') {
+  cardsSpriteImg = new Image();
+  cardsSpriteImg.onload = () => { cardsSpriteReady = true; };
+  cardsSpriteImg.src = new URL('../assets/cards/cards_spritesheet.png', import.meta.url).href;
+}
+
+function drawCardSpriteFrame(ctx, rank, suit, hw, hh, w, h) {
+  const col = CARD_RANK_ORDER.indexOf(rank);
+  const row = CARD_SUIT_ROW[suit];
+  const sx = col >= 0 && row >= 0 ? col * CARD_SPRITE_W : 0;
+  const sy = col >= 0 && row >= 0 ? row * CARD_SPRITE_H : 4 * CARD_SPRITE_H; // BACK fallback
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(
+    cardsSpriteImg,
+    sx, sy, CARD_SPRITE_W, CARD_SPRITE_H,
+    -hw, -hh, w, h
+  );
+  ctx.restore();
+}
+
+const GEM_SPRITE_INDEX = {
+  RUBY_INLAY: 0,
+  SAPPHIRE_INLAY: 1,
+  GLASS_FACE: 2,
+  PIP_FORGER: 3,
+  GOLD_LEAF: 4,
+  WILD_FACE: 5
+};
+
+let gemsSpriteImg = null;
+let gemsSpriteReady = false;
+if (typeof Image !== 'undefined') {
+  gemsSpriteImg = new Image();
+  gemsSpriteImg.onload = () => { gemsSpriteReady = true; };
+  gemsSpriteImg.src = new URL('../assets/gems/gems_spritesheet.png', import.meta.url).href;
+}
+const POTION_SPRITE_INDEX = {
+  STRENGTH: 0,
+  CLEANSE: 1
+};
+
+let potionsSpriteImg = null;
+let potionsSpriteReady = false;
+if (typeof Image !== 'undefined') {
+  potionsSpriteImg = new Image();
+  potionsSpriteImg.onload = () => { potionsSpriteReady = true; };
+  potionsSpriteImg.src = new URL('../assets/potions/potions_spritesheet.png', import.meta.url).href;
+}
+
+// Artefacts spritesheet (128x128 -> 32x32 sprites; 0=RED_CROWN, 1=GREED_CURSE, 2=SLIMEBALL, 3=ALCHEMY_BELT)
+const ARTEFACT_SPRITE_INDEX = {
+  RED_CROWN: 0,
+  GREED_CURSE: 1,
+  SLIMEBALL: 2,
+  ALCHEMY_BELT: 3
+};
+
+let artefactsSpriteImg = null;
+let artefactsSpriteReady = false;
+if (typeof Image !== 'undefined') {
+  artefactsSpriteImg = new Image();
+  artefactsSpriteImg.onload = () => { artefactsSpriteReady = true; };
+  artefactsSpriteImg.src = new URL('../assets/artefacts/artefacts.png', import.meta.url).href;
 }
 
 // Offscreen subtle felt grain pattern
@@ -283,244 +376,56 @@ export function drawSuitIcon(ctx, suit, cx, cy, size, color) {
   ctx.restore();
 }
 
-// Crisp procedural faceted gemstone illustrations for Dice Workshop stone cards
+// Gemstone spritesheet icons for Dice Workshop stone cards
 export function drawGemstoneIcon(ctx, upgradeId, cx, cy, size, time = 0) {
   ctx.save();
   ctx.translate(cx, cy);
   const s = size;
   const glint = 0.5 + 0.5 * Math.sin(time * 3.0 + cx * 0.05);
 
-  const palettes = {
-    PIP_FORGER: { // Amber Stone
-      outer: '#92400E',
-      mid: '#D97706',
-      light: '#FDE68A',
-      table: '#F59E0B',
-      glow: 'rgba(245, 158, 11, 0.38)',
-      shape: 'hex'
-    },
-    RUBY_INLAY: { // Ruby Stone
-      outer: '#881337',
-      mid: '#E11D48',
-      light: '#FECDD3',
-      table: '#FB7185',
-      glow: 'rgba(225, 29, 72, 0.42)',
-      shape: 'cushion'
-    },
-    SAPPHIRE_INLAY: { // Sapphire Stone
-      outer: '#0C4A6E',
-      mid: '#0284C7',
-      light: '#BAE6FD',
-      table: '#38BDF8',
-      glow: 'rgba(56, 189, 248, 0.42)',
-      shape: 'marquise'
-    },
-    GOLD_LEAF: { // Topaz Stone
-      outer: '#854D0E',
-      mid: '#EAB308',
-      light: '#FEF9C3',
-      table: '#FACC15',
-      glow: 'rgba(250, 204, 21, 0.40)',
-      shape: 'emerald'
-    },
-    GLASS_FACE: { // Emerald Stone
-      outer: '#064E3B',
-      mid: '#10B981',
-      light: '#A7F3D0',
-      table: '#34D399',
-      glow: 'rgba(16, 185, 129, 0.42)',
-      shape: 'emerald'
-    },
-    WILD_FACE: { // Amethyst Stone
-      outer: '#581C87',
-      mid: '#A855F7',
-      light: '#F5D0FE',
-      table: '#E879F9',
-      glow: 'rgba(192, 132, 252, 0.45)',
-      shape: 'crystal'
-    }
+  const glowColors = {
+    PIP_FORGER: 'rgba(245, 158, 11, 0.36)',
+    RUBY_INLAY: 'rgba(225, 29, 72, 0.40)',
+    SAPPHIRE_INLAY: 'rgba(56, 189, 248, 0.40)',
+    GOLD_LEAF: 'rgba(250, 204, 21, 0.38)',
+    GLASS_FACE: 'rgba(16, 185, 129, 0.40)',
+    WILD_FACE: 'rgba(192, 132, 252, 0.42)'
   };
 
-  const p = palettes[upgradeId] || palettes.WILD_FACE;
-
   // Soft ambient gem aura
-  const aura = ctx.createRadialGradient(0, 0, 2, 0, 0, s * 1.45);
-  aura.addColorStop(0, p.glow);
+  const aura = ctx.createRadialGradient(0, 0, 2, 0, 0, s * 1.4);
+  aura.addColorStop(0, glowColors[upgradeId] || 'rgba(192, 132, 252, 0.35)');
   aura.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = aura;
   ctx.beginPath();
-  ctx.arc(0, 0, s * 1.45, 0, Math.PI * 2);
+  ctx.arc(0, 0, s * 1.4, 0, Math.PI * 2);
   ctx.fill();
 
-  const tracePoly = (pts) => {
-    ctx.beginPath();
-    pts.forEach(([px, py], i) => (i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py)));
-    ctx.closePath();
-  };
-
-  if (p.shape === 'emerald') {
-    const w = s * 0.78, h = s * 0.98, c = s * 0.28;
-    const outerPts = [
-      [-w + c, -h], [w - c, -h], [w, -h + c], [w, h - c],
-      [w - c, h], [-w + c, h], [-w, h - c], [-w, -h + c]
-    ];
-    const innerPts = [
-      [-w * 0.52, -h * 0.58], [w * 0.52, -h * 0.58],
-      [w * 0.52, h * 0.58], [-w * 0.52, h * 0.58]
-    ];
-
-    const grad = ctx.createLinearGradient(-w, -h, w, h);
-    grad.addColorStop(0, p.light);
-    grad.addColorStop(0.45, p.mid);
-    grad.addColorStop(1, p.outer);
-    tracePoly(outerPts);
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = p.light;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 4; i++) {
-      ctx.beginPath();
-      ctx.moveTo(outerPts[i * 2][0], outerPts[i * 2][1]);
-      ctx.lineTo(innerPts[i][0], innerPts[i][1]);
-      ctx.moveTo(outerPts[i * 2 + 1][0], outerPts[i * 2 + 1][1]);
-      ctx.lineTo(innerPts[i][0], innerPts[i][1]);
-      ctx.stroke();
-    }
-
-    tracePoly(innerPts);
-    ctx.fillStyle = p.table;
-    ctx.fill();
-    ctx.strokeStyle = p.light;
-    ctx.stroke();
-  } else if (p.shape === 'marquise') {
-    const outerPts = [[0, -s * 1.05], [s * 0.78, 0], [0, s * 1.05], [-s * 0.78, 0]];
-    const innerPts = [[0, -s * 0.56], [s * 0.42, 0], [0, s * 0.56], [-s * 0.42, 0]];
-
-    const grad = ctx.createLinearGradient(-s, -s, s, s);
-    grad.addColorStop(0, p.light);
-    grad.addColorStop(0.5, p.mid);
-    grad.addColorStop(1, p.outer);
-    tracePoly(outerPts);
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = p.light;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 4; i++) {
-      ctx.beginPath();
-      ctx.moveTo(outerPts[i][0], outerPts[i][1]);
-      ctx.lineTo(innerPts[i][0], innerPts[i][1]);
-      ctx.stroke();
-    }
-    tracePoly(innerPts);
-    ctx.fillStyle = p.table;
-    ctx.fill();
-    ctx.stroke();
-  } else if (p.shape === 'cushion') {
-    const r = s * 0.88;
-    const outerPts = [
-      [-r * 0.55, -r], [r * 0.55, -r], [r, -r * 0.55], [r, r * 0.55],
-      [r * 0.55, r], [-r * 0.55, r], [-r, r * 0.55], [-r, -r * 0.55]
-    ];
-    const innerPts = [
-      [0, -r * 0.52], [r * 0.52, 0], [0, r * 0.52], [-r * 0.52, 0]
-    ];
-    const grad = ctx.createRadialGradient(-r * 0.25, -r * 0.25, 2, 0, 0, r * 1.1);
-    grad.addColorStop(0, p.light);
-    grad.addColorStop(0.45, p.mid);
-    grad.addColorStop(1, p.outer);
-    tracePoly(outerPts);
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = p.light;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    ctx.strokeStyle = 'rgba(255,255,255,0.42)';
-    ctx.lineWidth = 1;
-    outerPts.forEach(([ox, oy], idx) => {
-      const [ix, iy] = innerPts[Math.floor(idx / 2) % 4];
-      ctx.beginPath();
-      ctx.moveTo(ox, oy);
-      ctx.lineTo(ix, iy);
-      ctx.stroke();
-    });
-    tracePoly(innerPts);
-    ctx.fillStyle = p.table;
-    ctx.fill();
-    ctx.stroke();
-  } else if (p.shape === 'hex') {
-    const pts = [];
-    for (let i = 0; i < 6; i++) {
-      const a = (i * Math.PI) / 3 - Math.PI / 6;
-      pts.push([Math.cos(a) * s * 0.9, Math.sin(a) * s * 0.9]);
-    }
-    const grad = ctx.createRadialGradient(-s * 0.2, -s * 0.25, 2, 0, 0, s);
-    grad.addColorStop(0, p.light);
-    grad.addColorStop(0.55, p.table);
-    grad.addColorStop(1, p.outer);
-    tracePoly(pts);
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = p.light;
-    ctx.lineWidth = 1.6;
-    ctx.stroke();
-
-    ctx.fillStyle = 'rgba(254, 243, 199, 0.65)';
-    ctx.beginPath();
-    ctx.arc(-s * 0.2, -s * 0.15, s * 0.12, 0, Math.PI * 2);
-    ctx.arc(s * 0.22, s * 0.18, s * 0.08, 0, Math.PI * 2);
-    ctx.fill();
-  } else {
-    const mainPts = [
-      [0, -s * 1.05], [s * 0.65, -s * 0.42], [s * 0.56, s * 0.72],
-      [0, s * 1.02], [-s * 0.56, s * 0.72], [-s * 0.65, -s * 0.42]
-    ];
-    const grad = ctx.createLinearGradient(-s, -s, s, s);
-    grad.addColorStop(0, p.light);
-    grad.addColorStop(0.45, p.mid);
-    grad.addColorStop(1, p.outer);
-    tracePoly(mainPts);
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = p.light;
-    ctx.lineWidth = 1.6;
-    ctx.stroke();
-
-    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(0, -s * 1.05);
-    ctx.lineTo(0, s * 1.02);
-    ctx.moveTo(-s * 0.65, -s * 0.42);
-    ctx.lineTo(0, -s * 0.12);
-    ctx.lineTo(s * 0.65, -s * 0.42);
-    ctx.moveTo(-s * 0.56, s * 0.72);
-    ctx.lineTo(0, s * 0.25);
-    ctx.lineTo(s * 0.56, s * 0.72);
-    ctx.stroke();
+  const frameIdx = GEM_SPRITE_INDEX[upgradeId] ?? 5;
+  if (gemsSpriteReady) {
+    const drawSize = s * 2.15;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(
+      gemsSpriteImg,
+      frameIdx * 32, 0, 32, 32,
+      -drawSize / 2, -drawSize / 2, drawSize, drawSize
+    );
   }
 
-  const spX = -s * 0.36;
-  const spY = -s * 0.42;
-  const arm = s * (0.22 + glint * 0.18);
-  ctx.fillStyle = `rgba(255, 255, 255, ${0.55 + glint * 0.45})`;
+  // Animated sparkle glint
+  const spX = -s * 0.42;
+  const spY = -s * 0.46;
+  const arm = s * (0.20 + glint * 0.16);
+  ctx.fillStyle = `rgba(255, 255, 255, ${0.5 + glint * 0.45})`;
   ctx.beginPath();
   ctx.moveTo(spX, spY - arm);
-  ctx.lineTo(spX + 1.5, spY - 1.5);
+  ctx.lineTo(spX + 1.4, spY - 1.4);
   ctx.lineTo(spX + arm, spY);
-  ctx.lineTo(spX + 1.5, spY + 1.5);
+  ctx.lineTo(spX + 1.4, spY + 1.4);
   ctx.lineTo(spX, spY + arm);
-  ctx.lineTo(spX - 1.5, spY + 1.5);
+  ctx.lineTo(spX - 1.4, spY + 1.4);
   ctx.lineTo(spX - arm, spY);
-  ctx.lineTo(spX - 1.5, spY - 1.5);
+  ctx.lineTo(spX - 1.4, spY - 1.4);
   ctx.closePath();
   ctx.fill();
 
@@ -529,247 +434,125 @@ export function drawGemstoneIcon(ctx, upgradeId, cx, cy, size, time = 0) {
 
 export function drawPotionIcon(ctx, potionId, cx, cy, size = 18, time = 0) {
   const s = size;
-  const pulse = 0.5 + 0.5 * Math.sin(time * 3.4 + (potionId === 'CLONE' ? 1.5 : potionId === 'CLEANSE' ? 3.0 : 0));
+  const phase = potionId === 'CLEANSE' ? 2.1 : 0;
+  const pulse = 0.5 + 0.5 * Math.sin(time * 3.8 + phase);
+  const floatY = Math.sin(time * 2.6 + phase) * (s * 0.06);
 
   const themes = {
-    STRENGTH: { glow: 'rgba(251, 113, 133, 0.35)', liquid: '#E11D48', liquidTop: '#FB7185', rim: '#FFE4E6', cork: '#D97706' },
-    CLEANSE:  { glow: 'rgba(52, 211, 153, 0.35)',  liquid: '#059669', liquidTop: '#34D399', rim: '#D1FAE5', cork: '#D97706' }
+    STRENGTH: {
+      core: `rgba(251, 113, 133, ${0.58 + pulse * 0.25})`,
+      mid: `rgba(225, 29, 72, ${0.28 + pulse * 0.14})`,
+      shadow: '#FB7185',
+      spark: '#FFE4E6'
+    },
+    CLEANSE: {
+      core: `rgba(52, 211, 153, ${0.58 + pulse * 0.25})`,
+      mid: `rgba(16, 185, 129, ${0.28 + pulse * 0.14})`,
+      shadow: '#34D399',
+      spark: '#D1FAE5'
+    }
   };
   const t = themes[potionId] || themes.STRENGTH;
 
   ctx.save();
-  ctx.translate(cx, cy);
+  ctx.translate(cx, cy + floatY);
 
-  // Subtle aura behind bottle
-  const aura = ctx.createRadialGradient(0, s * 0.15, 2, 0, s * 0.15, s * 1.25);
-  aura.addColorStop(0, t.glow);
+  // Pulsating multi-stop radiant aura behind bottle
+  const auraR = s * (1.35 + pulse * 0.22);
+  const aura = ctx.createRadialGradient(0, s * 0.08, 1, 0, s * 0.08, auraR);
+  aura.addColorStop(0, t.core);
+  aura.addColorStop(0.5, t.mid);
   aura.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = aura;
   ctx.beginPath();
-  ctx.arc(0, s * 0.15, s * 1.25, 0, Math.PI * 2);
+  ctx.arc(0, s * 0.08, auraR, 0, Math.PI * 2);
   ctx.fill();
 
-  // Cork stopper
-  ctx.fillStyle = t.cork;
-  ctx.fillRect(-s * 0.18, -s * 0.96, s * 0.36, s * 0.24);
-  ctx.strokeStyle = '#92400E';
-  ctx.lineWidth = 1.2;
-  ctx.strokeRect(-s * 0.18, -s * 0.96, s * 0.36, s * 0.24);
-
-  // Bottle silhouette path
-  const traceBottle = () => {
-    ctx.beginPath();
-    ctx.moveTo(-s * 0.24, -s * 0.72);
-    ctx.lineTo(s * 0.24, -s * 0.72);
-    ctx.lineTo(s * 0.18, -s * 0.38);
-    if (potionId === 'CLEANSE') {
-      // Tall apothecary diamond-shoulder bottle
-      ctx.lineTo(s * 0.58, -s * 0.08);
-      ctx.lineTo(s * 0.58, s * 0.72);
-      ctx.lineTo(s * 0.36, s * 0.84);
-      ctx.lineTo(-s * 0.36, s * 0.84);
-      ctx.lineTo(-s * 0.58, s * 0.72);
-      ctx.lineTo(-s * 0.58, -s * 0.08);
-    } else {
-      // Round-bellied Strength flask
-      ctx.quadraticCurveTo(s * 0.78, -s * 0.05, s * 0.68, s * 0.45);
-      ctx.quadraticCurveTo(s * 0.58, s * 0.84, 0, s * 0.84);
-      ctx.quadraticCurveTo(-s * 0.58, s * 0.84, -s * 0.68, s * 0.45);
-      ctx.quadraticCurveTo(-s * 0.78, -s * 0.05, -s * 0.18, -s * 0.38);
-    }
-    ctx.lineTo(-s * 0.18, -s * 0.38);
-    ctx.closePath();
-  };
-
-  traceBottle();
-  ctx.fillStyle = 'rgba(12, 18, 30, 0.88)';
-  ctx.fill();
-
-  ctx.save();
-  traceBottle();
-  ctx.clip();
-
-  const liqY = -s * 0.06 + Math.sin(time * 2.8) * (s * 0.03);
-  const grad = ctx.createLinearGradient(0, liqY, 0, s * 0.85);
-  grad.addColorStop(0, t.liquidTop);
-  grad.addColorStop(1, t.liquid);
-  ctx.fillStyle = grad;
-  ctx.fillRect(-s, liqY, s * 2, s * 1.2);
-
-  // Liquid meniscus highlight
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-  ctx.fillRect(-s, liqY, s * 2, Math.max(1.5, s * 0.08));
-
-  // Potion-specific interior emblem / bubbles
-  if (potionId === 'STRENGTH') {
-    // Rising ember bubbles
-    ctx.fillStyle = 'rgba(255, 240, 245, 0.7)';
-    ctx.beginPath();
-    ctx.arc(-s * 0.22, s * (0.35 - pulse * 0.18), s * 0.09, 0, Math.PI * 2);
-    ctx.arc(s * 0.18, s * (0.5 - pulse * 0.14), s * 0.07, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (potionId === 'CLONE') {
-    // Twin glowing orbs
-    ctx.fillStyle = 'rgba(224, 242, 254, 0.82)';
-    ctx.beginPath();
-    ctx.arc(-s * 0.18, s * 0.36, s * 0.12, 0, Math.PI * 2);
-    ctx.arc(s * 0.18, s * 0.36, s * 0.12, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (potionId === 'CLEANSE') {
-    // 4-point purification star
-    const arm = s * (0.2 + pulse * 0.06);
-    ctx.fillStyle = 'rgba(236, 253, 245, 0.9)';
-    ctx.beginPath();
-    ctx.moveTo(0, s * 0.36 - arm);
-    ctx.lineTo(s * 0.06, s * 0.36 - s * 0.06);
-    ctx.lineTo(arm, s * 0.36);
-    ctx.lineTo(s * 0.06, s * 0.36 + s * 0.06);
-    ctx.lineTo(0, s * 0.36 + arm);
-    ctx.lineTo(-s * 0.06, s * 0.36 + s * 0.06);
-    ctx.lineTo(-arm, s * 0.36);
-    ctx.lineTo(-s * 0.06, s * 0.36 - s * 0.06);
-    ctx.closePath();
-    ctx.fill();
+  const frameIdx = POTION_SPRITE_INDEX[potionId] ?? 0;
+  if (potionsSpriteReady) {
+    const drawSize = s * 2.1;
+    ctx.save();
+    ctx.shadowColor = t.shadow;
+    ctx.shadowBlur = 10 + pulse * 8;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(
+      potionsSpriteImg,
+      frameIdx * 32, 0, 32, 32,
+      -drawSize / 2, -drawSize / 2, drawSize, drawSize
+    );
+    ctx.restore();
   }
 
-  // Left glass specular highlight
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
-  ctx.fillRect(-s * 0.42, -s * 0.2, s * 0.11, s * 0.8);
-  ctx.restore();
-
-  // Glass outline + lip rim
-  traceBottle();
-  ctx.strokeStyle = t.rim;
-  ctx.lineWidth = 1.6;
-  ctx.stroke();
-
-  ctx.fillStyle = t.rim;
-  ctx.fillRect(-s * 0.28, -s * 0.74, s * 0.56, s * 0.09);
+  // Orbiting / twinkling arcane motes
+  const motes = [
+    { ox: -0.62, oy: -0.35, speed: 4.2, offset: 0.4 },
+    { ox: 0.65, oy: 0.18, speed: 3.6, offset: 2.1 },
+    { ox: -0.18, oy: -0.78, speed: 4.8, offset: 3.9 }
+  ];
+  for (const m of motes) {
+    const tw = Math.max(0, Math.sin(time * m.speed + phase + m.offset));
+    if (tw > 0.2) {
+      const mx = s * m.ox;
+      const my = s * m.oy - tw * s * 0.12;
+      const arm = s * (0.10 + tw * 0.12);
+      ctx.fillStyle = t.spark;
+      ctx.globalAlpha = tw * 0.85;
+      ctx.beginPath();
+      ctx.moveTo(mx, my - arm);
+      ctx.lineTo(mx + arm * 0.28, my - arm * 0.28);
+      ctx.lineTo(mx + arm, my);
+      ctx.lineTo(mx + arm * 0.28, my + arm * 0.28);
+      ctx.lineTo(mx, my + arm);
+      ctx.lineTo(mx - arm * 0.28, my + arm * 0.28);
+      ctx.lineTo(mx - arm, my);
+      ctx.lineTo(mx - arm * 0.28, my - arm * 0.28);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
 
   ctx.restore();
 }
 
 export function drawArtefactIcon(ctx, artefactId, cx, cy, size = 18, time = 0) {
   const s = size;
-  const pulse = 0.5 + 0.5 * Math.sin(time * 3.0 + (artefactId === 'SLIMEBALL' ? 1.2 : artefactId === 'GREED_CURSE' ? 2.4 : 0));
-  const glows = {
-    RED_CROWN: 'rgba(251, 113, 133, 0.36)',
-    GREED_CURSE: 'rgba(251, 191, 36, 0.36)',
-    SLIMEBALL: 'rgba(74, 222, 128, 0.36)',
-    ALCHEMY_BELT: 'rgba(56, 189, 248, 0.36)'
+  const phase = artefactId === 'SLIMEBALL' ? 1.2 : artefactId === 'GREED_CURSE' ? 2.4 : artefactId === 'ALCHEMY_BELT' ? 3.6 : 0;
+  const pulse = 0.5 + 0.5 * Math.sin(time * 3.2 + phase);
+
+  const themes = {
+    RED_CROWN:    { core: `rgba(251, 113, 133, ${0.46 + pulse * 0.2})`, shadow: '#FB7185' },
+    GREED_CURSE:  { core: `rgba(251, 191, 36, ${0.46 + pulse * 0.2})`,  shadow: '#FBBF24' },
+    SLIMEBALL:    { core: `rgba(74, 222, 128, ${0.46 + pulse * 0.2})`,  shadow: '#4ADE80' },
+    ALCHEMY_BELT: { core: `rgba(56, 189, 248, ${0.46 + pulse * 0.2})`,  shadow: '#38BDF8' }
   };
+  const t = themes[artefactId] || themes.RED_CROWN;
 
   ctx.save();
   ctx.translate(cx, cy);
 
-  const aura = ctx.createRadialGradient(0, 0, 2, 0, 0, s * 1.25);
-  aura.addColorStop(0, glows[artefactId] || 'rgba(245, 205, 121, 0.3)');
+  const auraR = s * (1.28 + pulse * 0.16);
+  const aura = ctx.createRadialGradient(0, 0, 2, 0, 0, auraR);
+  aura.addColorStop(0, t.core);
   aura.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = aura;
   ctx.beginPath();
-  ctx.arc(0, 0, s * 1.25, 0, Math.PI * 2);
+  ctx.arc(0, 0, auraR, 0, Math.PI * 2);
   ctx.fill();
 
-  if (artefactId === 'RED_CROWN') {
-    const grad = ctx.createLinearGradient(0, -s * 0.7, 0, s * 0.6);
-    grad.addColorStop(0, '#FDA4AF');
-    grad.addColorStop(0.5, '#E11D48');
-    grad.addColorStop(1, '#881337');
-    ctx.beginPath();
-    ctx.moveTo(-s * 0.75, s * 0.52);
-    ctx.lineTo(-s * 0.85, -s * 0.35);
-    ctx.lineTo(-s * 0.36, s * 0.05);
-    ctx.lineTo(0, -s * 0.68);
-    ctx.lineTo(s * 0.36, s * 0.05);
-    ctx.lineTo(s * 0.85, -s * 0.35);
-    ctx.lineTo(s * 0.75, s * 0.52);
-    ctx.closePath();
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = '#FDE047';
-    ctx.lineWidth = 1.6;
-    ctx.stroke();
-
-    // Crown jewels
-    ctx.fillStyle = '#FEF08A';
-    [[-s * 0.85, -s * 0.38], [0, -s * 0.7], [s * 0.85, -s * 0.38]].forEach(([jx, jy]) => {
-      ctx.beginPath();
-      ctx.arc(jx, jy, s * 0.11, 0, Math.PI * 2);
-      ctx.fill();
-    });
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath();
-    ctx.arc(0, s * 0.22, s * 0.14, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (artefactId === 'GREED_CURSE') {
-    // Cursed golden coin/medallion with dark eye slit
-    const grad = ctx.createRadialGradient(-s * 0.2, -s * 0.2, 2, 0, 0, s * 0.82);
-    grad.addColorStop(0, '#FEF08A');
-    grad.addColorStop(0.65, '#D97706');
-    grad.addColorStop(1, '#78350F');
-    ctx.beginPath();
-    ctx.arc(0, 0, s * 0.78, 0, Math.PI * 2);
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = '#FDE047';
-    ctx.lineWidth = 1.6;
-    ctx.stroke();
-
-    // Inner cursed rune / eye
-    ctx.fillStyle = '#1E1024';
-    ctx.beginPath();
-    ctx.ellipse(0, 0, s * 0.42, s * 0.22, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = `rgba(251, 113, 133, ${0.75 + pulse * 0.25})`;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, s * 0.1, s * 0.18, 0, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (artefactId === 'SLIMEBALL') {
-    // Glossy green slime orb with floating bubbles
-    const grad = ctx.createRadialGradient(-s * 0.25, -s * 0.25, 2, 0, 0, s * 0.85);
-    grad.addColorStop(0, '#BBF7D0');
-    grad.addColorStop(0.5, '#22C55E');
-    grad.addColorStop(1, '#15803D');
-    ctx.beginPath();
-    ctx.arc(0, s * 0.06, s * 0.74, 0, Math.PI * 2);
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = '#86EFAC';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // Specular highlight & inner bubbles
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-    ctx.beginPath();
-    ctx.ellipse(-s * 0.26, -s * 0.24, s * 0.18, s * 0.1, -0.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(220, 252, 231, 0.75)';
-    ctx.beginPath();
-    ctx.arc(s * 0.22, s * (0.22 - pulse * 0.1), s * 0.1, 0, Math.PI * 2);
-    ctx.arc(-s * 0.12, s * 0.34, s * 0.08, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (artefactId === 'ALCHEMY_BELT') {
-    // Leather/arcane belt buckle with glowing azure vial pouch
-    ctx.fillStyle = '#78350F';
-    tracePixelRect(ctx, -s * 0.84, -s * 0.26, s * 1.68, s * 0.52, 4);
-    ctx.fill();
-    ctx.strokeStyle = '#D97706';
-    ctx.lineWidth = 1.4;
-    ctx.stroke();
-
-    // Brass buckle
-    ctx.strokeStyle = '#FDE047';
-    ctx.lineWidth = 2.2;
-    ctx.strokeRect(-s * 0.24, -s * 0.34, s * 0.48, s * 0.68);
-
-    // Hanging cyan potion charm
-    ctx.fillStyle = '#38BDF8';
-    ctx.beginPath();
-    ctx.arc(s * 0.42, s * 0.46, s * 0.24, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#E0F2FE';
-    ctx.lineWidth = 1.3;
-    ctx.stroke();
+  const frameIdx = ARTEFACT_SPRITE_INDEX[artefactId] ?? 0;
+  if (artefactsSpriteReady) {
+    const drawSize = s * 2.1;
+    ctx.save();
+    ctx.shadowColor = t.shadow;
+    ctx.shadowBlur = 8 + pulse * 6;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(
+      artefactsSpriteImg,
+      frameIdx * 32, 0, 32, 32,
+      -drawSize / 2, -drawSize / 2, drawSize, drawSize
+    );
+    ctx.restore();
   }
 
   ctx.restore();
@@ -859,71 +642,36 @@ export function drawDieFaceMini(ctx, face, cx, cy, size, opts = {}) {
   ctx.save();
   ctx.translate(cx, cy);
 
-  // Outer shadow/lip
-  tracePixelRect(ctx, -half, -half + 3, size, size, 10);
-  ctx.fillStyle = modMeta ? modMeta.border : COLORS.ivoryDeep;
-  ctx.fill();
-
-  // Main face background
-  tracePixelRect(ctx, -half, -half, size, size, 10);
-  const grad = ctx.createLinearGradient(-half, -half, half, half);
-  if (face.mod === 'glass') {
-    grad.addColorStop(0, '#E0F2FE');
-    grad.addColorStop(0.5, '#A5F3FC');
-    grad.addColorStop(1, '#38BDF8');
-  } else if (face.mod === 'gold') {
-    grad.addColorStop(0, '#FEF9C3');
-    grad.addColorStop(0.6, '#FDE047');
-    grad.addColorStop(1, '#CA8A04');
-  } else if (face.mod === 'mult') {
-    grad.addColorStop(0, '#FFF1F2');
-    grad.addColorStop(0.7, '#FECDD3');
-    grad.addColorStop(1, '#FB7185');
-  } else if (face.mod === 'chips') {
-    grad.addColorStop(0, '#F0F9FF');
-    grad.addColorStop(0.7, '#BAE6FD');
-    grad.addColorStop(1, '#38BDF8');
-  } else if (face.mod === 'wild') {
-    grad.addColorStop(0, '#FAF5FF');
-    grad.addColorStop(0.6, '#F5D0FE');
-    grad.addColorStop(1, '#E879F9');
-  } else {
-    grad.addColorStop(0, '#FFFDF7');
-    grad.addColorStop(0.65, COLORS.ivory);
-    grad.addColorStop(1, COLORS.ivoryShade);
-  }
-  ctx.fillStyle = grad;
-  ctx.fill();
-
-  // Border
-  tracePixelRect(ctx, -half + 0.5, -half + 0.5, size - 1, size - 1, 10);
-  ctx.strokeStyle = (selected || hovered)
-    ? COLORS.brassBright
-    : (modMeta ? modMeta.border : 'rgba(24, 34, 48, 0.65)');
-  ctx.lineWidth = (selected || hovered) ? 2.5 : (modMeta ? 2 : 1.5);
-  ctx.stroke();
-
-  // Pips or forged high-value numeral
-  const pipTable = getDicePipCoords(size * 0.24);
-  const pipCoords = pipTable[val];
-  const pipColor = modMeta
-    ? modMeta.bg
-    : (val === 1 ? COLORS.suitHearts : '#1A2433');
-
-  if (pipCoords && val <= 9) {
-    const pipR = val === 1 ? size * 0.115 : (val > 6 ? size * 0.072 : size * 0.086);
-    for (const [ox, oy] of pipCoords) {
-      ctx.beginPath();
-      ctx.arc(ox, oy, pipR, 0, Math.PI * 2);
-      ctx.fillStyle = pipColor;
+  if (diceSpriteReady && val >= 1 && val <= 6) {
+    drawDiceSpriteFrame(ctx, val, half, size);
+    if (modMeta) {
+      tracePixelRect(ctx, -half + 1, -half + 1, size - 2, size - 2, 8);
+      ctx.fillStyle = modMeta.color;
+      ctx.globalAlpha = 0.28;
       ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    if (selected || hovered || modMeta) {
+      tracePixelRect(ctx, -half + 0.5, -half + 0.5, size - 1, size - 1, 8);
+      ctx.strokeStyle = (selected || hovered) ? COLORS.brassBright : modMeta.border;
+      ctx.lineWidth = (selected || hovered) ? 2.5 : 2;
+      ctx.stroke();
     }
   } else {
-    ctx.fillStyle = pipColor;
-    ctx.font = `900 ${Math.round(size * 0.42)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+    // Forged >6 or pre-load fallback face with numeric value
+    tracePixelRect(ctx, -half, -half, size, size, 10);
+    ctx.fillStyle = modMeta ? modMeta.bg : COLORS.ivory;
+    ctx.fill();
+    tracePixelRect(ctx, -half + 0.5, -half + 0.5, size - 1, size - 1, 10);
+    ctx.strokeStyle = (selected || hovered) ? COLORS.brassBright : (modMeta ? modMeta.border : 'rgba(24, 34, 48, 0.65)');
+    ctx.lineWidth = (selected || hovered) ? 2.5 : 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = modMeta ? modMeta.color : '#1A2433';
+    ctx.font = `900 ${Math.round(size * 0.44)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(String(val), 0, 0);
+    ctx.fillText(String(val), 0, 1);
   }
 
   // Value > 6 corner numeral badge
@@ -998,76 +746,7 @@ export function drawDie(ctx, state, die, isTitle = false, debuffed = false) {
     ctx.globalAlpha = 1;
   }
 
-  // 3D beveled side lip
-  tracePixelRect(ctx, -half, -half + 7, size, size, 14);
-  ctx.fillStyle = debuffed ? '#6B4848' : (modMeta ? modMeta.border : COLORS.ivoryDeep);
-  ctx.fill();
-
-  // Main die face
-  tracePixelRect(ctx, -half, -half, size, size, 14);
-  const grad = ctx.createLinearGradient(-half, -half, half, half);
-  if (debuffed) {
-    grad.addColorStop(0, '#D4B8B8');
-    grad.addColorStop(1, '#A98888');
-  } else if (activeMod === 'glass') {
-    grad.addColorStop(0, '#ECFEFF');
-    grad.addColorStop(0.5, '#A5F3FC');
-    grad.addColorStop(1, '#38BDF8');
-  } else if (activeMod === 'gold') {
-    grad.addColorStop(0, '#FEF9C3');
-    grad.addColorStop(0.6, '#FDE047');
-    grad.addColorStop(1, '#CA8A04');
-  } else if (activeMod === 'mult') {
-    grad.addColorStop(0, '#FFF1F2');
-    grad.addColorStop(0.65, '#FFE4E6');
-    grad.addColorStop(1, '#FDA4AF');
-  } else if (activeMod === 'chips') {
-    grad.addColorStop(0, '#F0F9FF');
-    grad.addColorStop(0.65, '#E0F2FE');
-    grad.addColorStop(1, '#7DD3FC');
-  } else if (activeMod === 'wild') {
-    grad.addColorStop(0, '#FAF5FF');
-    grad.addColorStop(0.6, '#F5D0FE');
-    grad.addColorStop(1, '#E879F9');
-  } else {
-    grad.addColorStop(0, '#FFFDF7');
-    grad.addColorStop(0.65, COLORS.ivory);
-    grad.addColorStop(1, COLORS.ivoryShade);
-  }
-  ctx.fillStyle = grad;
-  ctx.fill();
-
-  // Glass diagonal sheen
-  if (activeMod === 'glass' && !debuffed) {
-    ctx.save();
-    tracePixelRect(ctx, -half, -half, size, size, 14);
-    ctx.clip();
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.38)';
-    ctx.beginPath();
-    ctx.moveTo(-half, -half + 18);
-    ctx.lineTo(-half + 26, -half);
-    ctx.lineTo(half, half - 26);
-    ctx.lineTo(half - 18, half);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-  }
-
-  // Recessed inner bevel square
-  tracePixelRect(ctx, -half + 7, -half + 7, size - 14, size - 14, 10);
-  ctx.strokeStyle = modMeta ? modMeta.color : 'rgba(255,255,255,0.65)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // Crisp outer outline
-  tracePixelRect(ctx, -half + 0.5, -half + 0.5, size - 1, size - 1, 14);
-  ctx.strokeStyle = die.selected
-    ? COLORS.brassBright
-    : (modMeta ? modMeta.border : 'rgba(24, 34, 48, 0.65)');
-  ctx.lineWidth = die.selected ? 2.5 : (modMeta ? 2.5 : 2);
-  ctx.stroke();
-
-  // Pips (or high forged value)
+  // Resolve displayed value (tumble animation or actual value)
   let val = die.value;
   if (isTumbling) {
     if (Array.isArray(die.faces) && die.faces.length > 0) {
@@ -1076,29 +755,59 @@ export function drawDie(ctx, state, die, isTitle = false, debuffed = false) {
       val = 1 + ((Math.floor(state.time * 24) + die.id) % DICE_SIDES);
     }
   }
-  const pOff = size * 0.255;
-  const pipTable = getDicePipCoords(pOff);
-  const pipCoords = pipTable[val];
-  const pipColor = debuffed
-    ? '#5C2626'
-    : (modMeta ? modMeta.bg : (val === 1 ? COLORS.suitHearts : '#1A2433'));
 
-  if (pipCoords && val <= 9) {
-    const pipR = val === 1 ? size * 0.125 : (val > 6 ? size * 0.076 : size * 0.092);
-    for (const [ox, oy] of pipCoords) {
-      ctx.beginPath();
-      ctx.arc(ox, oy + 1.5, pipR, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,0.55)';
-      ctx.fill();
+  if (diceSpriteReady && val >= 1 && val <= 6) {
+    drawDiceSpriteFrame(ctx, val, half, size);
 
-      ctx.beginPath();
-      ctx.arc(ox, oy, pipR, 0, Math.PI * 2);
-      ctx.fillStyle = pipColor;
+    if (debuffed) {
+      tracePixelRect(ctx, -half + 2, -half + 2, size - 4, size - 4, 12);
+      ctx.fillStyle = 'rgba(120, 20, 30, 0.42)';
       ctx.fill();
+    } else if (modMeta) {
+      tracePixelRect(ctx, -half + 2, -half + 2, size - 4, size - 4, 12);
+      ctx.fillStyle = modMeta.color;
+      ctx.globalAlpha = 0.25;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      tracePixelRect(ctx, -half + 0.5, -half + 0.5, size - 1, size - 1, 14);
+      ctx.strokeStyle = modMeta.border;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    }
+
+    if (activeMod === 'glass' && !debuffed) {
+      ctx.save();
+      tracePixelRect(ctx, -half, -half, size, size, 14);
+      ctx.clip();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.34)';
+      ctx.beginPath();
+      ctx.moveTo(-half, -half + 18);
+      ctx.lineTo(-half + 26, -half);
+      ctx.lineTo(half, half - 26);
+      ctx.lineTo(half - 18, half);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
     }
   } else {
-    ctx.fillStyle = pipColor;
-    ctx.font = `900 ${Math.round(size * 0.44)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+    // Forged >6 or pre-load fallback face with numeric value
+    tracePixelRect(ctx, -half, -half + 7, size, size, 14);
+    ctx.fillStyle = debuffed ? '#6B4848' : (modMeta ? modMeta.border : COLORS.ivoryDeep);
+    ctx.fill();
+
+    tracePixelRect(ctx, -half, -half, size, size, 14);
+    ctx.fillStyle = debuffed ? '#C4A0A0' : (modMeta ? modMeta.bg : COLORS.ivory);
+    ctx.fill();
+
+    tracePixelRect(ctx, -half + 0.5, -half + 0.5, size - 1, size - 1, 14);
+    ctx.strokeStyle = die.selected
+      ? COLORS.brassBright
+      : (modMeta ? modMeta.border : 'rgba(24, 34, 48, 0.65)');
+    ctx.lineWidth = die.selected ? 2.5 : 2;
+    ctx.stroke();
+
+    ctx.fillStyle = debuffed ? '#5C2626' : (modMeta ? modMeta.color : '#1A2433');
+    ctx.font = `900 ${Math.round(size * 0.46)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(String(val), 0, 2);
@@ -1202,15 +911,9 @@ export function drawPlayingCard(ctx, state, inst, cx, cy, w, h, opts = {}) {
 
   const def = CARD_BY_ID[inst.cardId];
   const isNeg = inst.edition === 'negative';
-  const isFoil = inst.edition === 'foil';        
-  const isHolo = inst.edition === 'holographic'; 
+  const isFoil = inst.edition === 'foil';
+  const isHolo = inst.edition === 'holographic';
   const isPoly = inst.edition === 'polychrome';
-  const isDarkCard = isNeg || isHolo || isPoly;
-  const suitColor = isHolo
-    ? ({ spades: '#FDE68A', hearts: '#FB7185', diamonds: '#FBBF24', clubs: '#FDBA74' }[def.suit])
-    : isPoly
-      ? ({ spades: '#E0F2FE', hearts: '#F472B6', diamonds: '#FDE047', clubs: '#5EEAD4' }[def.suit])
-      : getSuitColor(def.suit, isNeg);
 
   const hw = w / 2;
   const hh = h / 2;
@@ -1280,253 +983,38 @@ export function drawPlayingCard(ctx, state, inst, cx, cy, w, h, opts = {}) {
     ctx.restore();
   }
 
-  tracePixelRect(ctx, -hw, -hh + 4, w, h, r);
-  ctx.fillStyle = isNeg
-    ? 'rgba(20, 48, 56, 0.72)'
-    : isHolo
-      ? '#450A0A'
-      : isPoly
-        ? '#1E1B4B'
-        : isFoil
-          ? '#926B28'
-          : '#BEB5A1';
-  ctx.fill();
-
-  tracePixelRect(ctx, -hw, -hh, w, h, r);
-  if (isNeg) {
-    const ng = ctx.createLinearGradient(-hw, -hh, hw, hh);
-    ng.addColorStop(0, 'rgba(13, 21, 32, 0.78)');
-    ng.addColorStop(0.5, 'rgba(9, 14, 24, 0.74)');
-    ng.addColorStop(1, 'rgba(15, 29, 38, 0.80)');
-    ctx.fillStyle = ng;
-  } else if (isHolo) {
-    const bg = ctx.createLinearGradient(0, -hh, 0, hh);
-    bg.addColorStop(0, '#1C080E');
-    bg.addColorStop(0.45, '#380A18');
-    bg.addColorStop(0.78, '#7F1D1D');
-    bg.addColorStop(1, '#EA580C');
-    ctx.fillStyle = bg;
-  } else if (isPoly) {
-    const bg = ctx.createLinearGradient(-hw, -hh, hw, hh);
-    bg.addColorStop(0, '#0F172A');
-    bg.addColorStop(0.35, '#1E1B4B');
-    bg.addColorStop(0.7, '#164E63');
-    bg.addColorStop(1, '#3B0764');
-    ctx.fillStyle = bg;
-  } else if (isFoil) {
-    const bg = ctx.createLinearGradient(-hw, -hh, hw, hh);
-    bg.addColorStop(0, '#FFFDF7');
-    bg.addColorStop(0.6, '#FBF3DC');
-    bg.addColorStop(1, '#EFE0B9');
-    ctx.fillStyle = bg;
-  } else {
-    const bg = ctx.createLinearGradient(-hw, -hh, hw, hh);
-    bg.addColorStop(0, '#FFFDF9');
-    bg.addColorStop(1, '#EFE8D8');
-    ctx.fillStyle = bg;
-  }
-  ctx.fill();
-
-  // 2B. BACKGROUND MOSAIC / EMBER VEINS (Before Rank & Suit so icons stay super crisp!)
-  if (isHolo || isPoly) {
+  if (cardsSpriteReady && CARD_RANK_ORDER.includes(def.rank) && CARD_SUIT_ROW[def.suit] !== undefined) {
     ctx.save();
     tracePixelRect(ctx, -hw, -hh, w, h, r);
     ctx.clip();
+    if (isNeg) ctx.globalAlpha = 0.85;
+    drawCardSpriteFrame(ctx, def.rank, def.suit, hw, hh, w, h);
+    ctx.globalAlpha = 1;
 
-    if (isHolo) {
-      // Glowing molten core at bottom of card
-      const pulse = 0.5 + 0.5 * Math.sin(state.time * 4.0 + inst.uid);
-      const lava = ctx.createRadialGradient(0, hh * 0.85, 2, 0, hh * 0.65, w * 0.9);
-      lava.addColorStop(0, `rgba(254, 240, 138, ${0.42 + pulse * 0.22})`);
-      lava.addColorStop(0.35, `rgba(249, 115, 22, ${0.34 + pulse * 0.14})`);
-      lava.addColorStop(0.7, 'rgba(225, 29, 72, 0.16)');
-      lava.addColorStop(1, 'rgba(28, 8, 14, 0)');
-      ctx.fillStyle = lava;
+    if (isNeg) {
+      ctx.fillStyle = 'rgba(13, 38, 48, 0.42)';
       ctx.fillRect(-hw, -hh, w, h);
-
-
-      // Rising animated ember sparks inside the card
-      for (let i = 0; i < 9; i++) {
-        const seed = inst.uid * 17 + i * 31;
-        const speed = 0.42 + (i % 3) * 0.18;
-        const prog = (state.time * speed + seed * 0.13) % 1;
-        const sy = hh - prog * (h * 0.92);
-        const sx = Math.sin(prog * 5 + seed) * (hw * 0.72);
-        const sr = (1 - prog * 0.65) * (2.2 + (i % 2) * 1.1);
-        ctx.beginPath();
-        ctx.arc(sx, sy, sr, 0, Math.PI * 2);
-        ctx.fillStyle = i % 2 === 0
-          ? `rgba(254, 240, 138, ${(1 - prog) * 0.95})`
-          : `rgba(251, 113, 133, ${(1 - prog) * 0.9})`;
-        ctx.fill();
-      }
+    } else if (isHolo) {
+      ctx.fillStyle = 'rgba(159, 18, 57, 0.20)';
+      ctx.fillRect(-hw, -hh, w, h);
     } else if (isPoly) {
-      const t = state.time * 2.0 + inst.uid;
-      const facets = [
-        { pts: [[-hw, -hh], [0, -hh], [-hw * 0.45, -hh * 0.25], [-hw, 0]], col: `rgba(56, 189, 248, ${0.18 + 0.10 * Math.sin(t)})` },
-        { pts: [[0, -hh], [hw, -hh], [hw, 0], [hw * 0.45, -hh * 0.25]], col: `rgba(192, 132, 252, ${0.18 + 0.10 * Math.sin(t + 1.4)})` },
-        { pts: [[0, -hh], [hw * 0.48, -hh * 0.25], [0, 0], [-hw * 0.48, -hh * 0.25]], col: `rgba(224, 242, 254, ${0.14 + 0.12 * Math.sin(t + 2.6)})` },
-        // Left middle facet
-        { pts: [[-hw, 0], [-hw * 0.48, -hh * 0.25], [0, 0], [-hw * 0.48, hh * 0.28], [-hw, hh * 0.5]], col: `rgba(45, 212, 191, ${0.16 + 0.10 * Math.sin(t + 3.8)})` },
-        // Right middle facet
-        { pts: [[hw, 0], [hw, hh * 0.5], [hw * 0.48, hh * 0.28], [0, 0], [hw * 0.48, -hh * 0.25]], col: `rgba(244, 114, 182, ${0.16 + 0.10 * Math.sin(t + 4.9)})` },
-        // Center lower diamond
-        { pts: [[0, 0], [hw * 0.48, hh * 0.28], [0, hh * 0.72], [-hw * 0.48, hh * 0.28]], col: `rgba(125, 211, 252, ${0.16 + 0.12 * Math.sin(t + 5.7)})` },
-        // Bottom facets
-        { pts: [[-hw, hh * 0.5], [-hw * 0.48, hh * 0.28], [0, hh * 0.72], [-hw, hh]], col: `rgba(167, 139, 250, ${0.18 + 0.08 * Math.cos(t)})` },
-        { pts: [[hw, hh * 0.5], [hw, hh], [0, hh * 0.72], [hw * 0.48, hh * 0.28]], col: `rgba(56, 189, 248, ${0.20 + 0.10 * Math.sin(t + 2.1)})` }
-      ];
-
-      for (const f of facets) {
-        ctx.beginPath();
-        f.pts.forEach(([px, py], idx) => {
-          if (idx === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
-        });
-        ctx.closePath();
-        ctx.fillStyle = f.col;
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(224, 242, 254, 0.28)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.14)';
+      ctx.fillRect(-hw, -hh, w, h);
+    } else if (isFoil) {
+      ctx.fillStyle = 'rgba(245, 205, 121, 0.12)';
+      ctx.fillRect(-hw, -hh, w, h);
     }
     ctx.restore();
-  }
-
-  // 3. INNER ART-DECO FILIGREE & EDITION BORDERS
-  if (isFoil) {
-    // Gilded-Bound: Thin, lustrous double gold/brass Art Deco lines + stepped corner fan motifs
-    ctx.save();
-    tracePixelRect(ctx, -hw + 4, -hh + 4, w - 8, h - 8, 6);
-    ctx.strokeStyle = '#D4A359';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    tracePixelRect(ctx, -hw + 7.5, -hh + 7.5, w - 15, h - 15, 4);
-    ctx.strokeStyle = '#F5CD79';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    // Art Deco corner diamond accents
-    ctx.strokeStyle = '#D4A359';
-    ctx.lineWidth = 1.2;
-    const corners = [
-      [-hw + 8, -hh + 8, 1, 1],
-      [hw - 8, -hh + 8, -1, 1],
-      [-hw + 8, hh - 8, 1, -1],
-      [hw - 8, hh - 8, -1, -1]
-    ];
-    for (const [cx0, cy0, dx, dy] of corners) {
-      ctx.beginPath();
-      ctx.moveTo(cx0, cy0 + dy * 10);
-      ctx.lineTo(cx0 + dx * 10, cy0 + dy * 10);
-      ctx.lineTo(cx0 + dx * 10, cy0);
-      ctx.stroke();
-    }
-    ctx.restore();
-  } else if (isHolo) {
-    ctx.save();
-    tracePixelRect(ctx, -hw + 5, -hh + 5, w - 10, h - 10, 5);
-    ctx.strokeStyle = 'rgba(251, 146, 60, 0.55)';
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
-    ctx.restore();
-  } else if (isPoly) {
-    ctx.save();
-    tracePixelRect(ctx, -hw + 5, -hh + 5, w - 10, h - 10, 5);
-    ctx.strokeStyle = 'rgba(224, 242, 254, 0.55)';
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
-    ctx.restore();
-  } else if (isNeg) {
-    // Void-Etched: Cool turquoise-silver inner etched frame with dashed phantom filigree
-    ctx.save();
-    tracePixelRect(ctx, -hw + 5, -hh + 5, w - 10, h - 10, 5);
-    ctx.strokeStyle = 'rgba(94, 234, 212, 0.42)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 3]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
   } else {
-    tracePixelRect(ctx, -hw + 6, -hh + 6, w - 12, h - 12, 5);
-    ctx.strokeStyle = 'rgba(24,34,48,0.12)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  }
-
-  // Corner Rank & Suit (Top-left)
-  ctx.fillStyle = suitColor;
-  ctx.font = `900 ${Math.round(w * 0.19)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.fillText(def.rank, -hw + 10, -hh + 9);
-  drawSuitIcon(ctx, def.suit, -hw + 18, -hh + 9 + w * 0.25, w * 0.075, suitColor);
-
-  // Bottom-right mirrored mini rank & suit
-  ctx.save();
-  ctx.rotate(Math.PI);
-  ctx.fillStyle = suitColor;
-  ctx.font = `900 ${Math.round(w * 0.16)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.fillText(def.rank, -hw + 10, -hh + 9);
-  ctx.restore();
-
-  // Center court crest or bold suit medallion
-  const isCourt = def.rank === 'K' || def.rank === 'Q' || def.rank === 'J';
-  const isAce = def.rank === 'A';
-
-  if (isCourt) {
-    ctx.save();
-    ctx.fillStyle = isDarkCard ? 'rgba(255, 255, 255, 0.08)' : 'rgba(217,164,65,0.13)';
-    tracePixelRect(ctx, -w * 0.28, -h * 0.24, w * 0.56, h * 0.42, 6);
+    // Minimal pre-load fallback
+    tracePixelRect(ctx, -hw, -hh, w, h, r);
+    ctx.fillStyle = '#EFE8D8';
     ctx.fill();
-    ctx.strokeStyle = isHolo
-      ? 'rgba(251, 146, 60, 0.55)'
-      : isPoly
-        ? 'rgba(186, 230, 253, 0.55)'
-        : isNeg
-          ? 'rgba(148, 163, 184, 0.42)'
-          : 'rgba(217,164,65,0.5)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // Tiny crown pixels above central suit
-    ctx.fillStyle = isHolo ? '#FDE047' : isPoly ? '#E0F2FE' : isNeg ? '#5EEAD4' : '#C89128';
-    const cw = w * 0.24;
-    const cyCrown = -h * 0.17;
-    ctx.beginPath();
-    ctx.moveTo(-cw / 2, cyCrown + 9);
-    ctx.lineTo(-cw / 2, cyCrown);
-    ctx.lineTo(-cw / 6, cyCrown + 5);
-    ctx.lineTo(0, cyCrown - 3);
-    ctx.lineTo(cw / 6, cyCrown + 5);
-    ctx.lineTo(cw / 2, cyCrown);
-    ctx.lineTo(cw / 2, cyCrown + 9);
-    ctx.closePath();
-    ctx.fill();
-
-    drawSuitIcon(ctx, def.suit, 0, h * 0.02, w * 0.17, suitColor);
-    ctx.restore();
-  } else if (isAce) {
-    ctx.save();
-    ctx.strokeStyle = isHolo
-      ? 'rgba(251, 146, 60, 0.5)'
-      : isPoly
-        ? 'rgba(186, 230, 253, 0.5)'
-        : isNeg
-          ? 'rgba(94, 234, 212, 0.38)'
-          : 'rgba(24,34,48,0.14)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(0, -4, w * 0.25, 0, Math.PI * 2);
-    ctx.stroke();
-    drawSuitIcon(ctx, def.suit, 0, -4, w * 0.21, suitColor);
-    ctx.restore();
-  } else {
-    drawSuitIcon(ctx, def.suit, 0, -6, w * 0.18, suitColor);
+    ctx.fillStyle = '#1E293B';
+    ctx.font = `900 ${Math.round(w * 0.22)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(def.rank, 0, 0);
   }
 
   // Mnemonic bottom strip right on the card
