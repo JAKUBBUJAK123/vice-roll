@@ -1,25 +1,79 @@
 // =========================================================================
 // PROCEDURAL WEB AUDIO API SYNTHESIZER
 // =========================================================================
+const MUSIC_TRACKS = [
+  new URL('../assets/music/soundtrack1.wav', import.meta.url).href,
+  new URL('../assets/music/soundtrack2.wav', import.meta.url).href,
+  new URL('../assets/music/soundtrack3.wav', import.meta.url).href
+];
+
 export class SoundEngine {
   constructor() {
     this.ctx = null;
-    this.muted = false;
+    this._muted = false;
     this.noiseBuf = null;
+
+    // Background music playlist
+    this.tracks = MUSIC_TRACKS;
+    this.trackIndex = 0;
+    this.musicVolume = 0.28;
+    this.bgm = null;
+    this.musicStarted = false;
+  }
+
+  get muted() {
+    return this._muted;
+  }
+
+  set muted(val) {
+    this._muted = Boolean(val);
+    if (this.bgm) {
+      this.bgm.muted = this._muted;
+      if (!this._muted && this.musicStarted && this.bgm.paused) {
+        this.bgm.play().catch(() => {});
+      }
+    }
   }
 
   unlock() {
     if (!this.ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) return;
-      this.ctx = new AC();
-      const len = Math.floor(this.ctx.sampleRate * 0.25);
-      this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
-      const data = this.noiseBuf.getChannelData(0);
-      for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      if (AC) {
+        this.ctx = new AC();
+        const len = Math.floor(this.ctx.sampleRate * 0.25);
+        this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+        const data = this.noiseBuf.getChannelData(0);
+        for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
+    }
+    this.startMusic();
+  }
+
+  startMusic() {
+    if (typeof Audio === 'undefined' || this.tracks.length === 0) return;
+    if (!this.bgm) {
+      this.bgm = new Audio(this.tracks[this.trackIndex]);
+      this.bgm.volume = this.musicVolume;
+      this.bgm.muted = this._muted;
+      this.bgm.preload = 'auto';
+      this.bgm.addEventListener('ended', () => this.nextTrack());
+    }
+    this.musicStarted = true;
+    if (!this._muted && this.bgm.paused) {
+      this.bgm.play().catch(() => {});
+    }
+  }
+
+  nextTrack() {
+    if (!this.bgm || this.tracks.length === 0) return;
+    this.trackIndex = (this.trackIndex + 1) % this.tracks.length;
+    this.bgm.src = this.tracks[this.trackIndex];
+    this.bgm.currentTime = 0;
+    if (!this._muted) {
+      this.bgm.play().catch(() => {});
     }
   }
 

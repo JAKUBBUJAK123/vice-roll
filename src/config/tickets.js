@@ -1,6 +1,6 @@
-export const VOUCHER_COST = 10;
+export const TICKET_COST = 10;
 
-export const VOUCHER_CATALOG = [
+export const TICKET_CATALOG = [
   {
     id: 'HEAVY_CUP',
     name: 'Heavy Cup',
@@ -57,4 +57,4 @@ export const VOUCHER_CATALOG = [
   }
 ];
 
-export const VOUCHER_BY_ID = Object.fromEntries(VOUCHER_CATALOG.map(v => [v.id, v]));
+export const TICKET_BY_ID = Object.fromEntries(TICKET_CATALOG.map(t => [t.id, t]));

@@ -2,7 +2,7 @@ import { COLORS } from '../config/colors.js';
 import { EDITIONS } from '../config/editions.js';
 import { HANDS, HAND_ORDER } from '../config/hands.js';
 import { SUIT_SYMBOLS, CARD_BY_ID } from '../config/cards.js';
-import { VOUCHER_COST } from '../config/vouchers.js';
+import { TICKET_COST } from '../config/tickets.js';
 import { DICE_SIDES, FACE_MOD_META } from '../config/dices.js';
 import { POTION_BY_ID, MAX_POTION_SLOTS } from '../config/potions.js';
 import { ARTEFACT_BY_ID } from '../config/artefacts.js';
@@ -49,7 +49,7 @@ export function getActiveCardLayout(state) {
   return { cardW, cardH, gap, startX, centerY, trayX, trayW };
 }
 
-// Dynamic Shop Card Showcase Rects (supports 3 or 4 cards via VIP Pass Voucher)
+// Dynamic Shop Card Showcase Rects (supports 3 or 4 cards via VIP Pass Ticket)
 export function getShopCardRects(cardCount = 3) {
   const zoneX = 246;
   const zoneW = 550;
@@ -175,15 +175,15 @@ export function drawLeftHUD(ctx, state, uiCtx) {
     ctx.fillStyle = '#FDA4AF';
     ctx.fillText(state.activeBoss.short, rx + 24, ry + 52);
   } else {
-    const voucherCount = Object.values(state.vouchers || {}).reduce((a, b) => a + b, 0);
+    const ticketCount = Object.values(state.tickets || {}).reduce((a, b) => a + b, 0);
     ctx.font = '800 14.5px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = COLORS.textMain;
     ctx.fillText('Velvet Parlor Table', rx + 24, ry + 34);
     ctx.font = '600 11px ui-monospace, SFMono-Regular, Menlo, monospace';
-    ctx.fillStyle = voucherCount > 0 ? COLORS.chipsLight : COLORS.textMuted;
+    ctx.fillStyle = ticketCount > 0 ? COLORS.chipsLight : COLORS.textMuted;
     ctx.fillText(
-      voucherCount > 0
-        ? `${state.dicePool.length}d Pool · Max ${getMaxSelectDice()} Combo · ${voucherCount} Voucher${voucherCount > 1 ? 's' : ''}`
+      ticketCount > 0
+        ? `${state.dicePool.length}d Pool · Max ${getMaxSelectDice()} Combo · ${ticketCount} Ticket${ticketCount > 1 ? 's' : ''}`
         : `${state.dicePool.length}d Pool · Max ${getMaxSelectDice()} Combo`,
       rx + 24,
       ry + 53
@@ -444,7 +444,7 @@ export function drawModifierCardTray(ctx, state, uiCtx) {
     ctx.textAlign = 'center';
     ctx.font = '600 13.5px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = COLORS.textDim;
-    ctx.fillText('Clear Chapter 1 to visit the Parlor Bazaar for Arcana Cards, Vouchers & Dice Upgrades', x + w / 2, y + 102);
+    ctx.fillText('Clear Chapter 1 to visit the Parlor Bazaar for Arcana Cards, Tickets & Dice Upgrades', x + w / 2, y + 102);
     return;
   }
 
@@ -792,7 +792,7 @@ export function drawCashOutPanel(ctx, state, uiCtx) {
 }
 
 // ============================================================================
-// EXPANDED PARLOR BAZAAR: VOUCHER ALCOVE + ARCANA CARDS + DICE WORKSHOP
+// EXPANDED PARLOR BAZAAR: TICKET ALCOVE + ARCANA CARDS + DICE WORKSHOP
 // ============================================================================
 export function drawShopArena(ctx, state, uiCtx) {
   const {
@@ -801,7 +801,7 @@ export function drawShopArena(ctx, state, uiCtx) {
     getMaxCardSlots,
     getShopCardSlotCount,
     buyShopCard,
-    buyShopVoucher,
+    buyShopTicket,
     openWorkshopModal,
     rerollShop,
     startStage,
@@ -843,7 +843,7 @@ export function drawShopArena(ctx, state, uiCtx) {
   );
 
   // -------------------------------------------------------------------------
-  // 1. LEFT ALCOVE: ANTE VOUCHER ($10, Refreshes every 3 stages)
+  // 1. LEFT ALCOVE: STAKE TICKET ($10, Refreshes every 3 stages)
   // -------------------------------------------------------------------------
   const vx = x + 18, vy = y + 44, vw = 194, vh = 304;
   drawBevelPanel(ctx, vx, vy, vw, vh, {
@@ -853,18 +853,18 @@ export function drawShopArena(ctx, state, uiCtx) {
     r: 10
   });
 
-  const currentAnte = Math.floor((state.stage - 1) / 3) + 1;
+  const currentStake = Math.floor((state.stage - 1) / 3) + 1;
   ctx.textAlign = 'center';
   ctx.font = '800 11px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = COLORS.brassBright;
-  ctx.fillText(`ANTE ${currentAnte} VOUCHER`, vx + vw / 2, vy + 12);
+  ctx.fillText(`STAKE ${currentStake} TICKET`, vx + vw / 2, vy + 12);
 
   ctx.font = '600 10px ui-sans-serif, system-ui, sans-serif';
   ctx.fillStyle = COLORS.textMuted;
   ctx.fillText('Permanent Run Upgrade', vx + vw / 2, vy + 28);
 
-  const voucher = state.shopVoucher;
-  if (!voucher || voucher.purchased) {
+  const ticket = state.shopTicket;
+  if (!ticket || ticket.purchased) {
     tracePixelRect(ctx, vx + 16, vy + 52, vw - 32, 178, 10);
     ctx.fillStyle = 'rgba(255,255,255,0.03)';
     ctx.fill();
@@ -875,15 +875,15 @@ export function drawShopArena(ctx, state, uiCtx) {
     ctx.textBaseline = 'middle';
     ctx.font = '800 13px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = COLORS.textDim;
-    ctx.fillText(voucher && voucher.purchased ? 'VOUCHER CLAIMED' : 'SOLD OUT', vx + vw / 2, vy + 130);
+    ctx.fillText(ticket && ticket.purchased ? 'TICKET CLAIMED' : 'SOLD OUT', vx + vw / 2, vy + 130);
     ctx.font = '600 10.5px ui-sans-serif, system-ui, sans-serif';
-    ctx.fillText('Refreshes next Ante', vx + vw / 2, vy + 152);
+    ctx.fillText('Refreshes next Stake', vx + vw / 2, vy + 152);
   } else {
-    // Draw ornate Voucher ticket
+    // Draw ornate Ticket
     const tx = vx + 14, ty = vy + 48, tw = vw - 28, th = 186;
     drawBevelPanel(ctx, tx, ty, tw, th, {
       fill: '#20153B',
-      border: voucher.color,
+      border: ticket.color,
       lip: 3,
       r: 10,
       glow: 'rgba(245, 205, 121, 0.16)'
@@ -895,31 +895,31 @@ export function drawShopArena(ctx, state, uiCtx) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = '900 11px ui-monospace, SFMono-Regular, Menlo, monospace';
-    ctx.fillStyle = voucher.color;
-    ctx.fillText(voucher.tag, tx + tw / 2, ty + 23);
+    ctx.fillStyle = ticket.color;
+    ctx.fillText(ticket.tag, tx + tw / 2, ty + 23);
 
-    // Voucher Title
+    // Ticket Title
     ctx.textBaseline = 'top';
     ctx.font = '900 16px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = COLORS.textMain;
-    ctx.fillText(voucher.name, tx + tw / 2, ty + 46);
+    ctx.fillText(ticket.name, tx + tw / 2, ty + 46);
 
     // Wrapped description
     ctx.font = '600 11.5px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = '#DDD6FE';
-    const vLines = wrapLines(ctx, voucher.desc, tw - 22);
-    vLines.forEach((ln, i) => {
+    const tLines = wrapLines(ctx, ticket.desc, tw - 22);
+    tLines.forEach((ln, i) => {
       ctx.fillText(ln, tx + tw / 2, ty + 76 + i * 16);
     });
 
-    const canAffordV = state.money >= VOUCHER_COST && !state.modal;
-    registerButton(ctx, state, 'shop_buy_voucher', vx + 14, vy + vh - 56, vw - 28, 42, `REDEEM $${VOUCHER_COST}`, {
-      fill: canAffordV ? '#7C2D12' : '#1B162A',
+    const canAffordT = state.money >= TICKET_COST && !state.modal;
+    registerButton(ctx, state, 'shop_buy_ticket', vx + 14, vy + vh - 56, vw - 28, 42, `REDEEM $${TICKET_COST}`, {
+      fill: canAffordT ? '#7C2D12' : '#1B162A',
       hoverFill: '#9A3412',
-      border: canAffordV ? COLORS.goldLight : COLORS.railBorder,
+      border: canAffordT ? COLORS.goldLight : COLORS.railBorder,
       fontSize: 13.5,
-      disabled: !canAffordV,
-      onClick: buyShopVoucher
+      disabled: !canAffordT,
+      onClick: buyShopTicket
     });
   }
 
@@ -1232,7 +1232,7 @@ export function drawTitleScreen(ctx, state, uiCtx) {
   ctx.textAlign = 'center';
   ctx.font = '600 15.5px ui-sans-serif, system-ui, sans-serif';
   ctx.fillStyle = COLORS.textMuted;
-  ctx.fillText('Forge custom dice faces · Redeem Vouchers · Dock Arcana cards · Conquer chapters + Endless', fanCx, 250);
+  ctx.fillText('Forge custom dice faces · Redeem Tickets · Dock Arcana cards · Conquer chapters + Endless', fanCx, 250);
 
   registerButton(ctx, state, 'title_play', fanCx - 140, 286, 280, 62, 'ENTER PARLOR', {
     fill: '#0F766E',
@@ -1515,7 +1515,7 @@ export function drawOverlayModal(ctx, state, uiCtx) {
     ctx.textBaseline = 'top';
     ctx.font = '900 22px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = COLORS.brassBright;
-    ctx.fillText('SCORING HANDS, FACE INLAYS & VOUCHERS', x + 28, y + 20);
+    ctx.fillText('SCORING HANDS, FACE INLAYS & TICKETS', x + 28, y + 20);
 
     registerButton(ctx, state, 'guide_close', x + w - 120, y + 18, 92, 34, 'CLOSE', {
       fill: COLORS.railPanel, hoverFill: '#2D224A', fontSize: 13,
@@ -1578,7 +1578,7 @@ export function drawOverlayModal(ctx, state, uiCtx) {
 
     ctx.font = '800 12px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText('CARD EDITIONS & VOUCHERS', rx, ey + 8);
+    ctx.fillText('CARD EDITIONS & TICKETS', rx, ey + 8);
 
     const edList = [
       ['Gilded / Crimson / Prism / Void', '+50 Base / +12 Mult / x1.5 Mult / +1 Dock Slot', '#F5CD79'],
