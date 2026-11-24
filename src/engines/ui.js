@@ -918,17 +918,7 @@ export function drawShopArena(ctx, state, uiCtx) {
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
-
-    // Top stub: Tag pill + Spritesheet Icon
-    ctx.fillStyle = 'rgba(10, 6, 20, 0.85)';
-    ctx.fillRect(tx + 14, ty + 10, tw - 28, 17);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = '900 9.5px ui-monospace, SFMono-Regular, Menlo, monospace';
-    ctx.fillStyle = ticket.color;
-    ctx.fillText(ticket.tag, tx + tw / 2, ty + 18.5);
-
-    drawTicketIcon(ctx, ticket, tx + tw / 2, ty + 52, 16, state.time);
+    drawTicketIcon(ctx, ticket, tx + tw / 2, (ty + perfY) / 2, 20, state.time);
 
     // Lower body: Ticket Title & Wrapped description
     ctx.textBaseline = 'top';
@@ -1488,14 +1478,17 @@ export function drawOverlayModal(ctx, state, uiCtx) {
       ctx.fillStyle = mm ? mm.color : COLORS.textDim;
       ctx.fillText(mm ? mm.name : 'No Inlay', fx + cardW / 2, faceY + 118);
 
-      registerButton(ctx, state, `ws_apply_${fIdx}`, fx + 8, faceY + cardH - 38, cardW - 16, 28, 'APPLY', {
-        fill: '#0369A1',
-        hoverFill: '#0284C7',
-        border: '#7DD3FC',
-        fontSize: 11.5,
-        lip: 2,
-        onClick: () => applyWorkshopUpgrade(shopIdx, selectedDieIdx, fIdx)
-      });
+      const blockedByMin = upgrade.type === 'value_add' && upgrade.valueAdd < 0 && face.value <= (upgrade.minValue ?? 1);
+      registerButton(ctx, state, `ws_apply_${fIdx}`, fx + 8, faceY + cardH - 38, cardW - 16, 28,
+        blockedByMin ? 'MIN (1)' : 'APPLY', {
+          fill: blockedByMin ? '#1B162A' : '#0369A1',
+          hoverFill: '#0284C7',
+          border: blockedByMin ? COLORS.railBorder : '#7DD3FC',
+          fontSize: 11.5,
+          lip: 2,
+          disabled: blockedByMin,
+          onClick: () => applyWorkshopUpgrade(shopIdx, selectedDieIdx, fIdx)
+        });
     }
 
     ctx.textAlign = 'center';

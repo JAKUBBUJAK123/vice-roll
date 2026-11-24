@@ -65,7 +65,8 @@ const GEM_SPRITE_INDEX = {
   GLASS_FACE: 2,
   PIP_FORGER: 3,
   GOLD_LEAF: 4,
-  WILD_FACE: 5
+  WILD_FACE: 5,
+  PINK_GEM: 6
 };
 
 let gemsSpriteImg = null;
@@ -396,7 +397,8 @@ export function drawGemstoneIcon(ctx, upgradeId, cx, cy, size, time = 0) {
     SAPPHIRE_INLAY: 'rgba(56, 189, 248, 0.40)',
     GOLD_LEAF: 'rgba(250, 204, 21, 0.38)',
     GLASS_FACE: 'rgba(16, 185, 129, 0.40)',
-    WILD_FACE: 'rgba(192, 132, 252, 0.42)'
+    WILD_FACE: 'rgba(192, 132, 252, 0.42)',
+    PINK_GEM: 'rgba(244, 114, 182, 0.42)'
   };
 
   // Soft ambient gem aura

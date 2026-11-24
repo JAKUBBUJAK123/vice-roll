@@ -134,6 +134,17 @@ export const DICE_UPGRADE_CATALOG = [
     mod: 'wild',
     color: '#E879F9',
     desc: 'Enchants a die face as Wild: counts as whichever value maximizes your hand.'
+  },
+  {
+    id: 'PINK_GEM',
+    name: 'Pink Gem',
+    tag: '-1 VALUE',
+    price: WORKSHOP_UPGRADE_COST,
+    type: 'value_add',
+    valueAdd: -1,
+    minValue: 1,
+    color: '#F472B6',
+    desc: 'Permanently decreases a chosen die face value by'
   }
 ];
 

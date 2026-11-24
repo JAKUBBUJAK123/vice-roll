@@ -360,6 +360,41 @@ export const CARD_CATALOG = [
     desc: 'Retriggers every scored even die an additional time.',
     retriggerEven: true,
     evaluate() { return []; }
+  },
+  {
+    id: 'JH', rank: 'J', suit: 'hearts', name: 'Jack of Hearts', rarity: 'epic', rarityId: 4, basePrice: 8,
+    tag: 'POINTS',
+    desc: 'Doubles all pip values on your dice while owned.',
+    doublePips: true,
+    evaluate() { return []; }
+  },
+  {
+    id: 'QD', rank: 'Q', suit: 'diamonds', name: 'Queen of Diamonds', rarity: 'epic', rarityId: 4, basePrice: 8,
+    tag: 'GEM 2x',
+    desc: 'Doubles all crystal die face effects (Ruby, Sapphire, Topaz, Emerald).',
+    doubleGems: true,
+    evaluate() { return []; }
+  },
+  {
+    id: 'AC', rank: 'A', suit: 'clubs', name: 'Ace of Clubs', rarity: 'rare', rarityId: 3, basePrice: 6,
+    tag: 'MORPH',
+    desc: 'After defeating a Boss, morphs into a copy of a random other card in your Arcana dock.',
+    morphAfterBoss: true,
+    evaluate() { return []; }
+  },
+  {
+    id: 'JS', rank: 'J', suit: 'spades', name: 'Jack of Spades', rarity: 'rare', rarityId: 3, basePrice: 6,
+    tag: 'MULT',
+    desc: 'x2 Mult for each played die with a pip value greater than 6.',
+    evaluate(inst, ctx) {
+      const events = [];
+      for (const d of ctx.scoredDice) {
+        if (d.value > 6) {
+          events.push({ multMul: 2, label: 'x2 Mult', color: COLORS.multLight, sfx: 'xmult', dieId: d.id });
+        }
+      }
+      return events;
+    }
   }
 ];
 
