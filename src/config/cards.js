@@ -7,9 +7,31 @@ export const SUIT_SYMBOLS = {
   clubs: '♣'
 };
 
+// Rarity key map & shop spawn weights
+export const CARD_RARITIES = {
+  1: 'common',
+  2: 'uncommon',
+  3: 'rare',
+  4: 'epic'
+};
+
+export const RARITY_BY_NAME = {
+  common: 1,
+  uncommon: 2,
+  rare: 3,
+  epic: 4
+};
+
+export const RARITY_SPAWN_CHANCES = {
+  1: 0.53,
+  2: 0.33,
+  3: 0.1,
+  4: 0.04
+};
+
 export const CARD_CATALOG = [
   {
-    id: 'KS', rank: 'K', suit: 'spades', name: 'King of Spades', rarity: 'rare', basePrice: 6,
+    id: 'KS', rank: 'K', suit: 'spades', name: 'King of Spades', rarity: 'epic', rarityId: 4, basePrice: 8,
     tag: 'MULT',
     desc: 'x2 Mult for each even die in the played hand.',
     evaluate(inst, ctx) {
@@ -103,7 +125,7 @@ export const CARD_CATALOG = [
     }
   },
   {
-    id: 'KD', rank: 'K', suit: 'diamonds', name: 'King of Diamonds', rarity: 'rare', basePrice: 6,
+    id: 'KD', rank: 'K', suit: 'diamonds', name: 'King of Diamonds', rarity: 'epic', rarityId: 4, basePrice: 8,
     tag: 'MULT',
     desc: 'x3 Mult if the played hand is Trio, Perfect 18, or Quartet.',
     evaluate(inst, ctx) {
@@ -287,7 +309,7 @@ export const CARD_CATALOG = [
     evaluate() { return []; }
   },
   {
-    id: '2S', rank: '2', suit: 'spades', name: '2 of Spades', rarity: 'rare', basePrice: 6,
+    id: '2S', rank: '2', suit: 'spades', name: '2 of Spades', rarity: 'epic', rarityId: 4, basePrice: 8,
     tag: 'MULT',
     desc: 'Gains +1x Mult permanently whenever an Emerald Stone shatters.',
     isScaling: true,
@@ -319,7 +341,7 @@ export const CARD_CATALOG = [
     }
   },
   {
-    id: 'QC', rank: 'Q', suit: 'clubs', name: 'Queen of Clubs', rarity: 'rare', basePrice: 6,
+    id: 'QC', rank: 'Q', suit: 'clubs', name: 'Queen of Clubs', rarity: 'epic', rarityId: 4, basePrice: 8,
     tag: 'COPY',
     desc: 'Copies the effect of the card directly to its right.',
     copyRight: true,
@@ -342,3 +364,37 @@ export const CARD_CATALOG = [
 ];
 
 export const CARD_BY_ID = Object.fromEntries(CARD_CATALOG.map(c => [c.id, c]));
+
+export function pickWeightedShopCard(pool) {
+  if (!pool || pool.length === 0) return null;
+  const buckets = { 1: [], 2: [], 3: [], 4: [] };
+  for (const card of pool) {
+    const tier = card.rarityId || RARITY_BY_NAME[card.rarity] || 1;
+    if (buckets[tier]) buckets[tier].push(card);
+  }
+
+  let totalWeight = 0;
+  for (const tierStr of Object.keys(CARD_RARITIES)) {
+    const tier = Number(tierStr);
+    if (buckets[tier].length > 0) {
+      totalWeight += RARITY_SPAWN_CHANCES[tier] || 0;
+    }
+  }
+
+  if (totalWeight <= 0) {
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  let roll = Math.random() * totalWeight;
+  for (const tierStr of Object.keys(CARD_RARITIES)) {
+    const tier = Number(tierStr);
+    if (buckets[tier].length === 0) continue;
+    roll -= RARITY_SPAWN_CHANCES[tier] || 0;
+    if (roll <= 0) {
+      const list = buckets[tier];
+      return list[Math.floor(Math.random() * list.length)];
+    }
+  }
+
+  return pool[Math.floor(Math.random() * pool.length)];
+}

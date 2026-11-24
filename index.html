@@ -17,7 +17,7 @@
 import { COLORS } from './src/config/colors.js';
 import { EDITIONS } from './src/config/editions.js';
 import { HANDS } from './src/config/hands.js';
-import { CARD_CATALOG, CARD_BY_ID } from './src/config/cards.js';
+import { CARD_CATALOG, CARD_BY_ID, pickWeightedShopCard } from './src/config/cards.js';
 import { TICKET_COST, TICKET_CATALOG } from './src/config/tickets.js';
 import { POTION_CATALOG, POTION_BY_ID, MAX_POTION_SLOTS } from './src/config/potions.js';
 import { ARTEFACT_CATALOG, ARTEFACT_BY_ID } from './src/config/artefacts.js';
@@ -1526,13 +1526,15 @@ import {
     let pool = CARD_CATALOG.filter(c => !ownedIds.has(c.id));
     if (pool.length < slotCount) pool = [...CARD_CATALOG];
 
-    const shuffled = [...pool];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    const picked = [];
+    for (let i = 0; i < slotCount && pool.length > 0; i++) {
+      const def = pickWeightedShopCard(pool);
+      if (!def) break;
+      picked.push(createCardInstance(def.id));
+      pool = pool.filter(c => c.id !== def.id);
     }
 
-    state.shopCards = shuffled.slice(0, slotCount).map(def => createCardInstance(def.id));
+    state.shopCards = picked;
     rollWorkshopUpgrades();
     sfx.cardSnap();
   }
@@ -1573,9 +1575,7 @@ import {
         ...state.shopCards.filter(Boolean).map(c => c.cardId)
       ]);
       const extraPool = CARD_CATALOG.filter(c => !existingIds.has(c.id));
-      const pick = extraPool.length > 0
-        ? extraPool[Math.floor(Math.random() * extraPool.length)]
-        : CARD_CATALOG[Math.floor(Math.random() * CARD_CATALOG.length)];
+      const pick = pickWeightedShopCard(extraPool.length > 0 ? extraPool : CARD_CATALOG);
       state.shopCards.push(createCardInstance(pick.id));
     }
 
