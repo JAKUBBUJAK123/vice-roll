@@ -103,6 +103,13 @@ if (typeof Image !== 'undefined') {
   artefactsSpriteImg.onload = () => { artefactsSpriteReady = true; };
   artefactsSpriteImg.src = new URL('../assets/artefacts/artefacts.png', import.meta.url).href;
 }
+let ticketsSpriteImg = null;
+let ticketsSpriteReady = false;
+if (typeof Image !== 'undefined') {
+  ticketsSpriteImg = new Image();
+  ticketsSpriteImg.onload = () => { ticketsSpriteReady = true; };
+  ticketsSpriteImg.src = new URL('../assets/tickets/tickets_spritesheet.png', import.meta.url).href;
+}
 
 // Offscreen subtle felt grain pattern
 let feltPatternCanvas = null;
@@ -550,6 +557,59 @@ export function drawArtefactIcon(ctx, artefactId, cx, cy, size = 18, time = 0) {
     ctx.drawImage(
       artefactsSpriteImg,
       frameIdx * 32, 0, 32, 32,
+      -drawSize / 2, -drawSize / 2, drawSize, drawSize
+    );
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+export function traceTicketRect(ctx, x, y, w, h, r = 8, notchR = 8) {
+  const midY = y + h * 0.42;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, midY - notchR);
+  ctx.arc(x + w, midY, notchR, -Math.PI / 2, Math.PI / 2, true);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, midY + notchR);
+  ctx.arc(x, midY, notchR, Math.PI / 2, -Math.PI / 2, true);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+export function drawTicketIcon(ctx, ticket, cx, cy, size = 18, time = 0) {
+  const s = size;
+  const pulse = 0.5 + 0.5 * Math.sin(time * 3.0);
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  const aura = ctx.createRadialGradient(0, 0, 2, 0, 0, s * 1.25);
+  aura.addColorStop(0, `${ticket.color}55`);
+  aura.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = aura;
+  ctx.beginPath();
+  ctx.arc(0, 0, s * 1.25, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (ticketsSpriteReady) {
+    const idx = ticket.spriteIdx ?? 0;
+    const col = idx % 5;
+    const row = Math.floor(idx / 5);
+    const drawSize = s * 2.1;
+    ctx.save();
+    ctx.shadowColor = ticket.color;
+    ctx.shadowBlur = 6 + pulse * 5;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(
+      ticketsSpriteImg,
+      col * 32, row * 32, 32, 32,
       -drawSize / 2, -drawSize / 2, drawSize, drawSize
     );
     ctx.restore();

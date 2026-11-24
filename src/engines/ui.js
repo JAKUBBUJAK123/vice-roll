@@ -9,11 +9,13 @@ import { ARTEFACT_BY_ID } from '../config/artefacts.js';
 import {
   clamp,
   tracePixelRect,
+  traceTicketRect,
   drawBevelPanel,
   drawSuitIcon,
   drawGemstoneIcon,
   drawPotionIcon,
   drawArtefactIcon,
+  drawTicketIcon,
   wrapLines,
   getSuitColor,
   drawDie,
@@ -800,12 +802,12 @@ export function drawShopArena(ctx, state, uiCtx) {
     getStageTarget,
     getMaxCardSlots,
     getShopCardSlotCount,
+    getShopRerollCost,
     buyShopCard,
     buyShopTicket,
     openWorkshopModal,
     rerollShop,
-    startStage,
-    SHOP_REROLL_COST
+    startStage
   } = uiCtx;
 
   const w = 1232, h = 366;
@@ -879,37 +881,66 @@ export function drawShopArena(ctx, state, uiCtx) {
     ctx.font = '600 10.5px ui-sans-serif, system-ui, sans-serif';
     ctx.fillText('Refreshes next Stake', vx + vw / 2, vy + 152);
   } else {
-    // Draw ornate Ticket
-    const tx = vx + 14, ty = vy + 48, tw = vw - 28, th = 186;
-    drawBevelPanel(ctx, tx, ty, tw, th, {
-      fill: '#20153B',
-      border: ticket.color,
-      lip: 3,
-      r: 10,
-      glow: 'rgba(245, 205, 121, 0.16)'
-    });
+    // Draw ornate serrated Ticket with perforated stub & icon
+    const tx = vx + 14, ty = vy + 46, tw = vw - 28, th = 190;
+    ctx.save();
+    traceTicketRect(ctx, tx, ty + 4, tw, th, 9, 8);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.fill();
 
-    // Tag pill
+    traceTicketRect(ctx, tx, ty, tw, th, 9, 8);
+    const tGrad = ctx.createLinearGradient(tx, ty, tx, ty + th);
+    tGrad.addColorStop(0, '#2A1B4E');
+    tGrad.addColorStop(0.55, '#1B1136');
+    tGrad.addColorStop(1, '#120A24');
+    ctx.fillStyle = tGrad;
+    ctx.fill();
+    ctx.strokeStyle = ticket.color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Inner dashed ticket border
+    traceTicketRect(ctx, tx + 5, ty + 5, tw - 10, th - 10, 6, 6);
+    ctx.strokeStyle = 'rgba(245, 205, 121, 0.25)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Perforated horizontal tear line between stub & body
+    const perfY = ty + th * 0.42;
+    ctx.strokeStyle = 'rgba(245, 205, 121, 0.42)';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(tx + 12, perfY);
+    ctx.lineTo(tx + tw - 12, perfY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // Top stub: Tag pill + Spritesheet Icon
     ctx.fillStyle = 'rgba(10, 6, 20, 0.85)';
-    ctx.fillRect(tx + 12, ty + 12, tw - 24, 22);
+    ctx.fillRect(tx + 14, ty + 10, tw - 28, 17);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = '900 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.font = '900 9.5px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = ticket.color;
-    ctx.fillText(ticket.tag, tx + tw / 2, ty + 23);
+    ctx.fillText(ticket.tag, tx + tw / 2, ty + 18.5);
 
-    // Ticket Title
+    drawTicketIcon(ctx, ticket, tx + tw / 2, ty + 52, 16, state.time);
+
+    // Lower body: Ticket Title & Wrapped description
     ctx.textBaseline = 'top';
-    ctx.font = '900 16px ui-sans-serif, system-ui, sans-serif';
+    ctx.font = '900 14.5px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = COLORS.textMain;
-    ctx.fillText(ticket.name, tx + tw / 2, ty + 46);
+    ctx.fillText(ticket.name, tx + tw / 2, perfY + 10);
 
-    // Wrapped description
-    ctx.font = '600 11.5px ui-sans-serif, system-ui, sans-serif';
+    ctx.font = '600 11px ui-sans-serif, system-ui, sans-serif';
     ctx.fillStyle = '#DDD6FE';
-    const tLines = wrapLines(ctx, ticket.desc, tw - 22);
-    tLines.forEach((ln, i) => {
-      ctx.fillText(ln, tx + tw / 2, ty + 76 + i * 16);
+    const tLines = wrapLines(ctx, ticket.desc, tw - 24);
+    tLines.slice(0, 4).forEach((ln, i) => {
+      ctx.fillText(ln, tx + tw / 2, perfY + 32 + i * 14);
     });
 
     const canAffordT = state.money >= TICKET_COST && !state.modal;
@@ -1053,13 +1084,14 @@ export function drawShopArena(ctx, state, uiCtx) {
   // Far-Right Action Column: Refresh Bazaar & Next Chapter
   const sideX = 1058;
   const sideW = 180;
-  registerButton(ctx, state, 'shop_reroll', sideX, wy + 34, sideW, 68, `REFRESH ($${SHOP_REROLL_COST})`, {
+  const rerollCost = getShopRerollCost ? getShopRerollCost() : 3;
+  registerButton(ctx, state, 'shop_reroll', sideX, wy + 34, sideW, 68, `REFRESH ($${rerollCost})`, {
     fill: '#B45309',
     hoverFill: '#D97706',
     border: '#FCD34D',
     fontSize: 14.5,
     sublabel: 'Cards & Tools  [R]',
-    disabled: state.money < SHOP_REROLL_COST || Boolean(state.modal),
+    disabled: state.money < rerollCost || Boolean(state.modal),
     onClick: rerollShop
   });
 
@@ -1827,7 +1859,8 @@ export function drawPotionPickScreen(ctx, state, uiCtx) {
 // ============================================================================
 // ARTEFACTS TRAY (TOP-LEFT, MIRRORS POTION TRAY), TOOLTIP & BOSS PICKER
 // ============================================================================
-export function drawArtefactTray(ctx, state) {
+export function drawArtefactTray(ctx, state, uiCtx) {
+  const maxSlots = uiCtx && uiCtx.getMaxArtefactSlots ? uiCtx.getMaxArtefactSlots() : 3;
   const x = 16, y = 104, w = 220, h = 68;
 
   drawBevelPanel(ctx, x, y, w, h, {
@@ -1841,9 +1874,9 @@ export function drawArtefactTray(ctx, state) {
   ctx.textBaseline = 'top';
   ctx.font = '800 10px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = COLORS.brassBright;
-  ctx.fillText(`ARTEFACTS (${state.artefacts.length})`, x + 10, y + 6);
+  ctx.fillText(`ARTEFACTS (${state.artefacts.length}/${maxSlots})`, x + 10, y + 6);
 
-  const slots = Math.max(4, state.artefacts.length);
+  const slots = Math.max(maxSlots, state.artefacts.length);
   const gap = 5;
   const slotW = Math.floor((w - 20 - (slots - 1) * gap) / slots);
   const slotH = 40;
@@ -1919,7 +1952,9 @@ export function drawArtefactTooltip(ctx, state, uiCtx) {
 }
 
 export function drawArtefactPickScreen(ctx, state, uiCtx) {
-  const { pickArtefactReward, enterShop } = uiCtx;
+  const { pickArtefactReward, enterShop, getMaxArtefactSlots } = uiCtx;
+  const maxSlots = getMaxArtefactSlots ? getMaxArtefactSlots() : 3;
+  const full = state.artefacts.length >= maxSlots;
   const w = 780, h = 364;
   const x = (1280 - w) / 2, y = 180;
 
@@ -1973,14 +2008,16 @@ export function drawArtefactPickScreen(ctx, state, uiCtx) {
       ctx.fillText(ln, px + cardW / 2, cy + 104 + li * 16);
     });
 
-    registerButton(ctx, state, `pick_artefact_${idx}`, px + 24, cy + cardH - 42, cardW - 48, 30, 'CLAIM ARTEFACT', {
-      fill: '#9F1239',
-      hoverFill: '#BE123C',
-      border: '#FDA4AF',
-      fontSize: 12,
-      lip: 2,
-      onClick: () => pickArtefactReward(idx)
-    });
+    registerButton(ctx, state, `pick_artefact_${idx}`, px + 24, cy + cardH - 42, cardW - 48, 30,
+      full ? `SLOTS FULL (${maxSlots}/${maxSlots})` : 'CLAIM ARTEFACT', {
+        fill: full ? COLORS.railPanel : '#9F1239',
+        hoverFill: '#BE123C',
+        border: full ? COLORS.railBorder : '#FDA4AF',
+        fontSize: 12,
+        lip: 2,
+        disabled: full,
+        onClick: () => pickArtefactReward(idx)
+      });
   });
 
   registerButton(ctx, state, 'skip_artefact_pick', x + w / 2 - 120, y + h - 54, 240, 38, 'SKIP → ENTER BAZAAR', {

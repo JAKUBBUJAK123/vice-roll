@@ -365,7 +365,7 @@ export const CARD_CATALOG = [
 
 export const CARD_BY_ID = Object.fromEntries(CARD_CATALOG.map(c => [c.id, c]));
 
-export function pickWeightedShopCard(pool) {
+export function pickWeightedShopCard(pool, luckyStacks = 0) {
   if (!pool || pool.length === 0) return null;
   const buckets = { 1: [], 2: [], 3: [], 4: [] };
   for (const card of pool) {
@@ -373,11 +373,18 @@ export function pickWeightedShopCard(pool) {
     if (buckets[tier]) buckets[tier].push(card);
   }
 
+  // Lucky Clover boosts Rare (3) and Epic (4) odds
+  const weights = luckyStacks >= 2
+    ? { 1: 0.20, 2: 0.28, 3: 0.34, 4: 0.18 }
+    : luckyStacks === 1
+      ? { 1: 0.34, 2: 0.30, 3: 0.26, 4: 0.10 }
+      : RARITY_SPAWN_CHANCES;
+
   let totalWeight = 0;
   for (const tierStr of Object.keys(CARD_RARITIES)) {
     const tier = Number(tierStr);
     if (buckets[tier].length > 0) {
-      totalWeight += RARITY_SPAWN_CHANCES[tier] || 0;
+      totalWeight += weights[tier] || 0;
     }
   }
 
@@ -389,7 +396,7 @@ export function pickWeightedShopCard(pool) {
   for (const tierStr of Object.keys(CARD_RARITIES)) {
     const tier = Number(tierStr);
     if (buckets[tier].length === 0) continue;
-    roll -= RARITY_SPAWN_CHANCES[tier] || 0;
+    roll -= weights[tier] || 0;
     if (roll <= 0) {
       const list = buckets[tier];
       return list[Math.floor(Math.random() * list.length)];

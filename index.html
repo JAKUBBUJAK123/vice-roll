@@ -79,6 +79,7 @@ import {
   const LOGICAL_W = 1280;
   const LOGICAL_H = 760;
   const BASE_MAX_SLOTS = 5;
+  const BASE_MAX_ARTEFACT_SLOTS = 3;
   const BASE_HANDS = 4;
   const BASE_REROLLS = 3;
   const SHOP_REROLL_COST = 3;
@@ -349,6 +350,7 @@ import {
     dicePool: [],
     currentTicketStake: 0,
     shopTicket: null,
+    shopRerollsUsed: 0,
     shopDiceUpgrades: [],
     workshopTarget: null, // { shopIdx, upgrade }
     workshopDieIdx: 0,
@@ -419,6 +421,14 @@ import {
 
   function getMaxPotionSlots() {
     return MAX_POTION_SLOTS + (hasArtefact('ALCHEMY_BELT') ? 1 : 0);
+  }
+
+  function getMaxArtefactSlots() {
+    return BASE_MAX_ARTEFACT_SLOTS + getTicketStacks('RELIC_RACK');
+  }
+
+  function getShopRerollCost() {
+    return Math.max(1, SHOP_REROLL_COST + (state.shopRerollsUsed || 0) - getTicketStacks('MEMBER_CARD') * 2);
   }
 
   function getStageMaxHands() {
@@ -1013,28 +1023,34 @@ import {
       d.flashColor = mm.color;
       state.scoringStepCount++;
 
+      const gemFactor = getTicketStacks('CRYSTALLOGRAPHER') > 0 ? 2 : 1;
+
       if (mod === 'mult') {
-        state.mult += 15;
-        state.scoringBanner = `Die #${d.id + 1} Ruby Stone  →  +15 Mult`;
-        spawnPopup(d.x, d.y - 82, '+15 Mult', mm.color, 23);
+        const addM = 15 * gemFactor;
+        state.mult += addM;
+        state.scoringBanner = `Die #${d.id + 1} Ruby Stone  →  +${addM} Mult`;
+        spawnPopup(d.x, d.y - 82, `+${addM} Mult`, mm.color, 23);
         spawnParticles(d.x, d.y - 15, 14, [mm.color, '#FFFFFF'], 70, 190);
         sfx.scoreStep(state.scoringStepCount, 'mult');
       } else if (mod === 'chips') {
-        state.chips += 50;
-        state.scoringBanner = `Die #${d.id + 1} Sapphire Stone  →  +50 Base`;
-        spawnPopup(d.x, d.y - 82, '+50 Base', mm.color, 23);
+        const addC = 50 * gemFactor;
+        state.chips += addC;
+        state.scoringBanner = `Die #${d.id + 1} Sapphire Stone  →  +${addC} Base`;
+        spawnPopup(d.x, d.y - 82, `+${addC} Base`, mm.color, 23);
         spawnParticles(d.x, d.y - 15, 14, [mm.color, '#FFFFFF'], 70, 190);
         sfx.scoreStep(state.scoringStepCount, 'chips');
       } else if (mod === 'gold') {
-        state.money += 3;
-        state.totalMoneyEarned += 3;
-        state.scoringBanner = `Die #${d.id + 1} Topaz Stone  →  +$3`;
-        spawnPopup(d.x, d.y - 82, '+$3', mm.color, 24);
-        spawnPopup(985, 65, '+$3', COLORS.goldLight, 20);
+        const addG = 3 * gemFactor;
+        state.money += addG;
+        state.totalMoneyEarned += addG;
+        state.scoringBanner = `Die #${d.id + 1} Topaz Stone  →  +$${addG}`;
+        spawnPopup(d.x, d.y - 82, `+$${addG}`, mm.color, 24);
+        spawnPopup(985, 65, `+$${addG}`, COLORS.goldLight, 20);
         spawnParticles(d.x, d.y - 15, 16, [mm.color, COLORS.gold, '#FFFFFF'], 70, 200);
         sfx.scoreStep(state.scoringStepCount, 'money');
       } else if (mod === 'glass') {
-        state.mult = Math.round(state.mult * 2 * 100) / 100;
+        const glassMul = gemFactor > 1 ? 4 : 2;
+        state.mult = Math.round(state.mult * glassMul * 100) / 100;
         addShake(5);
         const shattered = !!step.shattered;
         if (shattered) {
@@ -1042,13 +1058,13 @@ import {
           if (d.faces && d.faces[d.faceIndex]) {
             d.faces[d.faceIndex].mod = null;
           }
-          state.scoringBanner = `Die #${d.id + 1} Emerald Stone  →  x2 Mult (SHATTERED!)`;
-          spawnPopup(d.x, d.y - 88, 'x2 & SHATTER!', '#FCA5A5', 24);
+          state.scoringBanner = `Die #${d.id + 1} Emerald Stone  →  x${glassMul} Mult (SHATTERED!)`;
+          spawnPopup(d.x, d.y - 88, `x${glassMul} & SHATTER!`, '#FCA5A5', 24);
           spawnParticles(d.x, d.y - 15, 28, ['#A5F3FC', '#FFFFFF', '#F87171'], 100, 280);
           sfx.error();
         } else {
-          state.scoringBanner = `Die #${d.id + 1} Emerald Stone  →  x2 Mult`;
-          spawnPopup(d.x, d.y - 82, 'x2 Mult', mm.color, 26);
+          state.scoringBanner = `Die #${d.id + 1} Emerald Stone  →  x${glassMul} Mult`;
+          spawnPopup(d.x, d.y - 82, `x${glassMul} Mult`, mm.color, 26);
           spawnParticles(d.x, d.y - 15, 18, [mm.color, '#FFFFFF'], 80, 220);
           sfx.scoreStep(state.scoringStepCount, 'xmult');
         }
@@ -1339,6 +1355,11 @@ import {
 
   function pickArtefactReward(choiceIdx) {
     if (state.mode !== 'ARTEFACT_PICK') return;
+    if (state.artefacts.length >= getMaxArtefactSlots()) {
+      sfx.error();
+      showNotice(`Artefact slots full (${getMaxArtefactSlots()}/${getMaxArtefactSlots()})!`, 1.8);
+      return;
+    }
     const artId = state.artefactChoices[choiceIdx];
     const def = ARTEFACT_BY_ID[artId];
     if (!def || state.artefacts.includes(artId)) return;
@@ -1516,6 +1537,7 @@ import {
     state.modal = null;
     state.workshopTarget = null;
     state.focusedActiveUid = null;
+    state.shopRerollsUsed = 0;
     rollStakeTicketIfNeeded();
     rollShopInventory();
   }
@@ -1526,9 +1548,10 @@ import {
     let pool = CARD_CATALOG.filter(c => !ownedIds.has(c.id));
     if (pool.length < slotCount) pool = [...CARD_CATALOG];
 
+    const luckyStacks = getTicketStacks('LUCKY_CLOVER');
     const picked = [];
     for (let i = 0; i < slotCount && pool.length > 0; i++) {
-      const def = pickWeightedShopCard(pool);
+      const def = pickWeightedShopCard(pool, luckyStacks);
       if (!def) break;
       picked.push(createCardInstance(def.id));
       pool = pool.filter(c => c.id !== def.id);
@@ -1541,13 +1564,15 @@ import {
 
   function rerollShop() {
     if (state.mode !== 'SHOP' || state.modal) return;
-    if (state.money < SHOP_REROLL_COST) {
+    const cost = getShopRerollCost();
+    if (state.money < cost) {
       sfx.error();
-      showNotice('Need $' + SHOP_REROLL_COST + ' to refresh the Bazaar', 1.4);
+      showNotice('Need $' + cost + ' to refresh the Bazaar', 1.4);
       return;
     }
-    state.money -= SHOP_REROLL_COST;
-    spawnPopup(985, 65, '-$' + SHOP_REROLL_COST, COLORS.multLight, 22);
+    state.money -= cost;
+    state.shopRerollsUsed = (state.shopRerollsUsed || 0) + 1;
+    spawnPopup(985, 65, '-$' + cost, COLORS.multLight, 22);
     rollShopInventory();
   }
 
@@ -1575,7 +1600,7 @@ import {
         ...state.shopCards.filter(Boolean).map(c => c.cardId)
       ]);
       const extraPool = CARD_CATALOG.filter(c => !existingIds.has(c.id));
-      const pick = pickWeightedShopCard(extraPool.length > 0 ? extraPool : CARD_CATALOG);
+      const pick = pickWeightedShopCard(extraPool.length > 0 ? extraPool : CARD_CATALOG, getTicketStacks('LUCKY_CLOVER'));
       state.shopCards.push(createCardInstance(pick.id));
     }
 
@@ -1784,10 +1809,12 @@ import {
     getBaseCardSlots,
     getMaxCardSlots,
     getMaxPotionSlots,
+    getMaxArtefactSlots,
     getMaxSelectDice,
     getStageMaxHands,
     getStageMaxRerolls,
     getShopCardSlotCount,
+    getShopRerollCost,
     isDieDebuffedByBoss,
     isCardDebuffedByBoss,
     isAnyDieTumbling,
@@ -1852,7 +1879,7 @@ import {
       } else if (state.mode === 'GAME_OVER') {
         drawEndModal(ctx, state, false, uiCtx);
       }
-      drawArtefactTray(ctx, state);
+      drawArtefactTray(ctx, state, uiCtx);
       drawPotionTray(ctx, state, uiCtx);
     }
 
