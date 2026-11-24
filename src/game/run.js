@@ -11,9 +11,17 @@ import {
   getStageMaxHands, getStageMaxRerolls, showNotice, addShake, spawnPopup, spawnParticles
 } from './core.js';
 
-export function startNewRun() {
+export function openClothSelect() {
+  sfx.unlock();
+  sfx.click();
+  state.modal = null;
+  state.mode = 'CLOTH_SELECT';
+}
+
+export function startNewRun(clothId = null) {
   sfx.unlock();
   sfx.buyCard();
+  if (clothId) state.selectedClothId = clothId;
   state.stage = 1;
   state.endless = false;
   state.money = 4000000;

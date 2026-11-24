@@ -8,7 +8,7 @@ import { sfx } from '../engines/soundEngine.js';
 import {
   drawLeftHUD, drawModifierCardTray, drawPlayArena, drawDieInspectorTooltip, drawCashOutPanel,
   drawShopArena, drawCardTooltip, drawPotionTray, drawPotionTooltip, drawPotionPickScreen,
-  drawArtefactTray, drawArtefactTooltip, drawArtefactPickScreen, drawTitleScreen, drawEndModal, drawOverlayModal
+  drawArtefactTray, drawArtefactTooltip, drawArtefactPickScreen, drawTitleScreen, drawClothSelectScreen, drawEndModal, drawOverlayModal
 } from '../engines/ui.js';
 import { findHoveredDieIndex, initInputListeners } from '../engines/keyinputs.js';
 
@@ -19,7 +19,7 @@ import {
   getShopCardSlotCount, getShopRerollCost, initTitleBackdrop, spawnPopup, spawnParticles
 } from './core.js';
 import {
-  startNewRun, startStage, toggleDieSelection, playSelectedHand, triggerReroll, clearSelectedDice,
+  openClothSelect, startNewRun, startStage, toggleDieSelection, playSelectedHand, triggerReroll, clearSelectedDice,
   isAnyDieTumbling, isDieDebuffedByBoss, isCardDebuffedByBoss, executeScoringStep, finishScoringPhase
 } from './run.js';
 import {
@@ -123,7 +123,7 @@ const uiCtx = {
   getMaxPotionSlots, getMaxArtefactSlots, getMaxSelectDice, getStageMaxHands, getStageMaxRerolls,
   getShopCardSlotCount, getShopRerollCost,
   isDieDebuffedByBoss, isCardDebuffedByBoss, isAnyDieTumbling,
-  startNewRun, startStage, enterShop, playSelectedHand, triggerReroll, clearSelectedDice,
+  openClothSelect, startNewRun, startStage, enterShop, playSelectedHand, triggerReroll, clearSelectedDice,
   claimCashOut, buyShopCard, buyShopTicket, openWorkshopModal, applyWorkshopUpgrade, rerollShop,
   moveActiveCard, sellActiveCard, pickPotionReward, pickArtefactReward, usePotion, sellPotion, clonePoolDie
 };
@@ -151,6 +151,8 @@ function render() {
 
   if (state.mode === 'TITLE_MENU') {
     drawTitleScreen(ctx, state, uiCtx);
+  } else if (state.mode === 'CLOTH_SELECT') {
+    drawClothSelectScreen(ctx, state, uiCtx);
   } else {
     drawLeftHUD(ctx, state, uiCtx);
     drawModifierCardTray(ctx, state, uiCtx);
@@ -188,7 +190,7 @@ function render() {
 // ---------- 8. Bootstrap ----------
 initInputListeners(canvas, state, {
   LOGICAL_W, LOGICAL_H,
-  startNewRun, toggleDieSelection, playSelectedHand, triggerReroll,
+  openClothSelect, startNewRun, toggleDieSelection, playSelectedHand, triggerReroll,
   clearSelectedDice, claimCashOut, rerollShop, startStage
 });
 initTitleBackdrop();

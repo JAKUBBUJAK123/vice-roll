@@ -112,6 +112,14 @@ if (typeof Image !== 'undefined') {
   ticketsSpriteImg.src = new URL('../assets/tickets/tickets_spritesheet.png', import.meta.url).href;
 }
 
+let clothsSpriteImg = null;
+let clothsSpriteReady = false;
+if (typeof Image !== 'undefined') {
+  clothsSpriteImg = new Image();
+  clothsSpriteImg.onload = () => { clothsSpriteReady = true; };
+  clothsSpriteImg.src = new URL('../assets/clothes/cloths_spritesheet.png', import.meta.url).href;
+}
+
 // Offscreen subtle felt grain pattern
 let feltPatternCanvas = null;
 
@@ -616,6 +624,49 @@ export function drawTicketIcon(ctx, ticket, cx, cy, size = 18, time = 0) {
     );
     ctx.restore();
   }
+
+  ctx.restore();
+}
+
+export function drawClothSwatch(ctx, cloth, x, y, w, h, opts = {}) {
+  const { selected = false, hovered = false } = opts;
+  ctx.save();
+
+  tracePixelRect(ctx, x, y, w, h, 8);
+  ctx.save();
+  ctx.clip();
+  if (clothsSpriteReady) {
+    const idx = cloth.spriteIdx ?? 0;
+    const col = idx % 4;
+    const row = Math.floor(idx / 4);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(
+      clothsSpriteImg,
+      col * 32, row * 32, 32, 32,
+      x, y, w, h
+    );
+  } else {
+    ctx.fillStyle = '#1D3324';
+    ctx.fillRect(x, y, w, h);
+  }
+
+  // Subtle woven sheen
+  const sheen = ctx.createLinearGradient(x, y, x + w, y + h);
+  sheen.addColorStop(0, 'rgba(255, 255, 255, 0.14)');
+  sheen.addColorStop(0.5, 'rgba(255, 255, 255, 0)');
+  sheen.addColorStop(1, 'rgba(0, 0, 0, 0.22)');
+  ctx.fillStyle = sheen;
+  ctx.fillRect(x, y, w, h);
+  ctx.restore();
+
+  tracePixelRect(ctx, x + 0.5, y + 0.5, w - 1, h - 1, 8);
+  ctx.strokeStyle = selected
+    ? COLORS.goldLight
+    : hovered
+      ? cloth.color
+      : 'rgba(255, 255, 255, 0.22)';
+  ctx.lineWidth = selected ? 2.5 : 1.5;
+  ctx.stroke();
 
   ctx.restore();
 }

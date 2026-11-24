@@ -51,6 +51,7 @@ export function initInputListeners(canvas, state, actions) {
   const {
     LOGICAL_W,
     LOGICAL_H,
+    openClothSelect,
     startNewRun,
     toggleDieSelection,
     playSelectedHand,
@@ -167,6 +168,9 @@ export function initInputListeners(canvas, state, actions) {
         sfx.click();
         state.modal = null;
         state.workshopTarget = null;
+      } else if (state.mode === 'CLOTH_SELECT') {
+        sfx.click();
+        state.mode = 'TITLE_MENU';
       } else if (state.mode === 'PLAYING' || state.mode === 'SHOP') {
         sfx.click();
         state.modal = 'PAUSE';
@@ -179,7 +183,16 @@ export function initInputListeners(canvas, state, actions) {
     if (state.mode === 'TITLE_MENU') {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        startNewRun();
+        if (openClothSelect) openClothSelect();
+        else startNewRun();
+      }
+      return;
+    }
+
+    if (state.mode === 'CLOTH_SELECT') {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        startNewRun(state.selectedClothId);
       }
       return;
     }

@@ -6,6 +6,7 @@ import { TICKET_COST } from '../config/tickets.js';
 import { DICE_SIDES, FACE_MOD_META } from '../config/dices.js';
 import { POTION_BY_ID, MAX_POTION_SLOTS } from '../config/potions.js';
 import { ARTEFACT_BY_ID } from '../config/artefacts.js';
+import { CLOTH_CATALOG, CLOTH_BY_ID } from '../config/cloths.js';
 import {
   clamp,
   tracePixelRect,
@@ -16,6 +17,7 @@ import {
   drawPotionIcon,
   drawArtefactIcon,
   drawTicketIcon,
+  drawClothSwatch,
   wrapLines,
   getSuitColor,
   drawDie,
@@ -1198,7 +1200,7 @@ export function drawCardTooltip(ctx, state, uiCtx) {
 }
 
 export function drawTitleScreen(ctx, state, uiCtx) {
-  const { startNewRun, LOGICAL_W } = uiCtx;
+  const { openClothSelect, startNewRun, LOGICAL_W } = uiCtx;
 
   for (const td of state.titleDice) {
     const bob = Math.sin(state.time * 1.6 + td.phase) * 10;
@@ -1263,7 +1265,7 @@ export function drawTitleScreen(ctx, state, uiCtx) {
     fontSize: 22,
     sublabel: 'Press Enter or Space',
     glow: 'rgba(45, 212, 191, 0.4)',
-    onClick: startNewRun
+    onClick: openClothSelect || startNewRun
   });
 
   registerButton(ctx, state, 'title_guide', fanCx - 175, 650, 165, 42, 'HANDS & RULES', {
@@ -1287,6 +1289,153 @@ export function drawTitleScreen(ctx, state, uiCtx) {
 
   ctx.font = '600 12.5px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = COLORS.textDim;
+}
+
+export function drawClothSelectScreen(ctx, state, uiCtx) {
+  const { startNewRun, LOGICAL_W, LOGICAL_H } = uiCtx;
+  const activeCloth = CLOTH_BY_ID[state.selectedClothId] || CLOTH_CATALOG[0];
+
+  // Subtle dark parlor backdrop
+  ctx.fillStyle = 'rgba(7, 3, 16, 0.72)';
+  ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+
+  const pw = 1140, ph = 640;
+  const px = (LOGICAL_W - pw) / 2;
+  const py = (LOGICAL_H - ph) / 2;
+
+  drawBevelPanel(ctx, px, py, pw, ph, {
+    fill: 'rgba(18, 12, 32, 0.94)',
+    border: COLORS.brassBright,
+    lip: 6,
+    r: 16,
+    glow: 'rgba(245, 205, 121, 0.18)'
+  });
+
+  // Header
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.font = '900 30px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = COLORS.goldLight;
+  ctx.fillText('CHOOSE YOUR TABLE CLOTH', px + pw / 2, py + 24);
+
+  ctx.font = '600 13.5px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = COLORS.textMuted;
+  ctx.fillText('Select a velvet cloth for this run', px + pw / 2, py + 64);
+
+  const gridX = px + 34;
+  const gridY = py + 106;
+  const cardW = 166, cardH = 196, gapX = 16, gapY = 18;
+
+  CLOTH_CATALOG.forEach((cloth, idx) => {
+    const col = idx % 4;
+    const row = Math.floor(idx / 4);
+    const cx = gridX + col * (cardW + gapX);
+    const cy = gridY + row * (cardH + gapY);
+    const rect = { x: cx, y: cy, w: cardW, h: cardH };
+    const hovered = hitTest(state.mouseX, state.mouseY, rect);
+    const selected = cloth.id === activeCloth.id;
+
+    drawBevelPanel(ctx, cx, cy, cardW, cardH, {
+      fill: selected ? '#241842' : hovered ? '#1C1434' : '#120C22',
+      border: selected ? COLORS.goldLight : hovered ? cloth.color : COLORS.railBorderBright,
+      lip: selected ? 4 : 3,
+      r: 12,
+      glow: selected ? `${cloth.color}55` : null
+    });
+
+    const swSize = 96;
+    drawClothSwatch(ctx, cloth, cx + (cardW - swSize) / 2, cy + 18, swSize, swSize, {
+      selected,
+      hovered
+    });
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.font = '800 13.5px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = selected ? COLORS.goldLight : COLORS.textMain;
+    ctx.fillText(cloth.name, cx + cardW / 2, cy + 126);
+
+    ctx.font = '800 10px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = selected ? '#5EEAD4' : cloth.color;
+    ctx.fillText(selected ? '★ SELECTED' : cloth.tag, cx + cardW / 2, cy + 150);
+
+    registerButton(ctx, state, `cloth_pick_${cloth.id}`, cx, cy, cardW, cardH, '', {
+      drawInvisible: true,
+      onClick: () => {
+        sfx.cardSnap();
+        state.selectedClothId = cloth.id;
+      }
+    });
+  });
+
+  const rx = px + pw - 364;
+  const ry = py + 106;
+  const rw = 330;
+  const rh = 496;
+
+  drawBevelPanel(ctx, rx, ry, rw, rh, {
+    fill: '#130D24',
+    border: activeCloth.color,
+    lip: 4,
+    r: 14,
+    glow: `${activeCloth.color}33`
+  });
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.font = '800 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = COLORS.brassBright;
+  ctx.fillText('SELECTED TABLE CLOTH', rx + rw / 2, ry + 18);
+
+  const bigSw = 148;
+  drawClothSwatch(ctx, activeCloth, rx + (rw - bigSw) / 2, ry + 44, bigSw, bigSw, {
+    selected: true
+  });
+
+  ctx.font = '900 22px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = COLORS.textMain;
+  ctx.fillText(activeCloth.name, rx + rw / 2, ry + 210);
+
+  // Tag pill
+  ctx.fillStyle = 'rgba(10, 6, 20, 0.85)';
+  ctx.fillRect(rx + 84, ry + 244, rw - 168, 22);
+  ctx.font = '800 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = activeCloth.color;
+  ctx.textBaseline = 'middle';
+  ctx.fillText(activeCloth.tag, rx + rw / 2, ry + 255);
+
+  // Effect description box
+  drawBevelPanel(ctx, rx + 22, ry + 280, rw - 44, 108, {
+    fill: 'rgba(8, 5, 16, 0.72)',
+    border: COLORS.railBorder,
+    lip: 2,
+    r: 10
+  });
+  ctx.textBaseline = 'top';
+  ctx.font = '600 13px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = '#EDE9FE';
+  const lines = wrapLines(ctx, activeCloth.desc, rw - 72);
+  lines.forEach((ln, i) => {
+    ctx.fillText(ln, rx + rw / 2, ry + 298 + i * 19);
+  });
+
+  registerButton(ctx, state, 'cloth_start_run', rx + 24, ry + rh - 102, rw - 48, 54, 'START RUN ▸', {
+    fill: '#0F766E',
+    hoverFill: '#0D9488',
+    border: '#5EEAD4',
+    fontSize: 19,
+    sublabel: '[Enter / Space]',
+    glow: 'rgba(45, 212, 191, 0.35)',
+    onClick: () => startNewRun(activeCloth.id)
+  });
+
+  registerButton(ctx, state, 'cloth_back', rx + 64, ry + rh - 38, rw - 128, 28, '← BACK TO TITLE', {
+    fill: COLORS.railPanel,
+    hoverFill: '#2D224A',
+    fontSize: 11.5,
+    lip: 2,
+    onClick: () => { sfx.click(); state.mode = 'TITLE_MENU'; }
+  });
 }
 
 export function drawEndModal(ctx, state, isVictory, uiCtx) {

@@ -201,8 +201,9 @@ export function createCardInstance(cardId, forcedEdition = null) {
 
 // ---------- 3. Stan gry ----------
 export const state = {
-  mode: 'TITLE_MENU', // TITLE_MENU | PLAYING | SCORING | CASH_OUT | SHOP | VICTORY | GAME_OVER
-  modal: null,        // null | 'PAUSE' | 'GUIDE' | 'WORKSHOP'
+  mode: 'TITLE_MENU', // TITLE_MENU | CLOTH_SELECT | PLAYING | SCORING | CASH_OUT | POTION_PICK | ARTEFACT_PICK | SHOP | VICTORY | GAME_OVER
+  modal: null,        // null | 'PAUSE' | 'GUIDE' | 'WORKSHOP' | 'CLONE_POTION'
+  selectedClothId: 'SAPPHIRE_GOLD',
   crtEnabled: true,
   time: 0,
   stats: loadStats(),
