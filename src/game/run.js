@@ -21,10 +21,11 @@ export function openClothSelect() {
   state.mode = 'CLOTH_SELECT';
 }
 
-export function startNewRun(clothId = null) {
+export function startNewRun(clothId = null, difficultyId = null) {
   sfx.unlock();
   sfx.buyCard();
   if (clothId) state.selectedClothId = clothId;
+  if (difficultyId) state.selectedDifficultyId = difficultyId;
   state.stage = 1;
   state.endless = false;
   // state.money = 4 + (state.selectedClothId === 'WHITE_SILK' ? 20 : 0);

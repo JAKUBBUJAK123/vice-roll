@@ -120,6 +120,14 @@ if (typeof Image !== 'undefined') {
   clothsSpriteImg.src = new URL('../assets/clothes/cloths_spritesheet.png', import.meta.url).href;
 }
 
+let diffSpriteImg = null;
+let diffSpriteReady = false;
+if (typeof Image !== 'undefined') {
+  diffSpriteImg = new Image();
+  diffSpriteImg.onload = () => { diffSpriteReady = true; };
+  diffSpriteImg.src = new URL('../assets/clothes/difficulty_spritesheet.png', import.meta.url).href;
+}
+
 // Offscreen subtle felt grain pattern
 let feltPatternCanvas = null;
 
@@ -668,6 +676,21 @@ export function drawClothSwatch(ctx, cloth, x, y, w, h, opts = {}) {
   ctx.lineWidth = selected ? 2.5 : 1.5;
   ctx.stroke();
 
+  ctx.restore();
+}
+
+export function drawDifficultyIcon(ctx, diff, cx, cy, size = 32) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  if (diffSpriteReady) {
+    const idx = diff.spriteIdx ?? 0;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(
+      diffSpriteImg,
+      idx * 32, 0, 32, 32,
+      -size / 2, -size / 2, size, size
+    );
+  }
   ctx.restore();
 }
 

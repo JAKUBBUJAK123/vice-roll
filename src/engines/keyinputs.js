@@ -192,7 +192,7 @@ export function initInputListeners(canvas, state, actions) {
     if (state.mode === 'CLOTH_SELECT') {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        startNewRun(state.selectedClothId);
+        startNewRun(state.selectedClothId, state.selectedDifficultyId);
       }
       return;
     }

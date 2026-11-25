@@ -7,7 +7,7 @@ import { ARTEFACT_CATALOG, ARTEFACT_BY_ID } from '../config/artefacts.js';
 import { MAX_DICE_COUNT, DICE_UPGRADE_CATALOG, getDynamicDiceLayout, createPoolDie } from '../config/dices.js';
 import { sfx } from '../engines/soundEngine.js';
 import {
-  state, createCardInstance, saveStats, getTicketStacks,
+  state, createCardInstance, getShopPriceIncrease, saveStats, getTicketStacks,
   getMaxPotionSlots, getMaxArtefactSlots, getMaxCardSlots,
   getShopCardSlotCount, getShopRerollCost,
   showNotice, spawnPopup, spawnParticles
@@ -257,7 +257,8 @@ function rollWorkshopUpgrades() {
     const j = Math.floor(Math.random() * (i + 1));
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
-  state.shopDiceUpgrades = shuffled.slice(0, 2).map(u => ({ ...u }));
+  const priceAdd = getShopPriceIncrease();
+  state.shopDiceUpgrades = shuffled.slice(0, 2).map(u => ({ ...u, price: u.price + priceAdd }));
 }
 
 export function enterShop() {

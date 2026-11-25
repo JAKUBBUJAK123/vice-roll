@@ -57,3 +57,53 @@ export const CLOTH_CATALOG = [
   }
 ];
 export const CLOTH_BY_ID = Object.fromEntries(CLOTH_CATALOG.map(c => [c.id, c]));
+
+export const DIFFICULTY_CATALOG = [
+  {
+    id: 'OPEN_TABLE',
+    name: 'Open Table',
+    spriteIdx: 0,
+    color: '#34D399',
+    targetMult: 1,
+    rerollDelta: 0,
+    rerollCostAdd: 0,
+    priceAdd: 0,
+    desc: 'Standard house rules & normal chapter goals.'
+  },
+  {
+    id: 'HOUSE_CUT',
+    name: 'House Cut',
+    spriteIdx: 1,
+    color: '#FACC15',
+    tag: 'MODIFIER',
+    targetMult: 1.25,
+    rerollDelta: 0,
+    rerollCostAdd: 0,
+    priceAdd: 0,
+    desc: '1.25× chapter target scores.'
+  },
+  {
+    id: 'CROUPIERS_TAX',
+    name: "Croupier's Tax",
+    spriteIdx: 2,
+    color: '#FB923C',
+    targetMult: 1.4,
+    rerollDelta: 0,
+    rerollCostAdd: 1,
+    priceAdd: 1,
+    desc: '1.4× goals, +$1 reroll, card & gem prices.'
+  },
+  {
+    id: 'NO_MERCY',
+    name: 'No Mercy',
+    spriteIdx: 3,
+    color: '#FB7185',
+    targetMult: 1.75,
+    rerollDelta: -1,
+    rerollCostAdd: 1,
+    priceAdd: 1,
+    desc: '1.75× goals, -1 Reroll & +$1 shop prices.'
+  }
+];
+
+export const DIFFICULTY_BY_ID = Object.fromEntries(DIFFICULTY_CATALOG.map(d => [d.id, d]));

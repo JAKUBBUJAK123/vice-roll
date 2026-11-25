@@ -3,6 +3,7 @@ import { HANDS } from '../config/hands.js';
 import { CARD_BY_ID } from '../config/cards.js';
 import { MAX_POTION_SLOTS } from '../config/potions.js';
 import { MAX_SELECT_DICE, TITLE_DICE } from '../config/dices.js';
+import { DIFFICULTY_BY_ID } from '../config/cloths.js';
 import {
   addShake as engineAddShake,
   spawnPopup as engineSpawnPopup,
@@ -76,6 +77,10 @@ export function getStageTarget(stage) {
   }
   if (state && state.selectedClothId === 'PALLADINS_CLOTH') {
     target = Math.round((target * 1.35) / 10) * 10;
+  }
+  const diff = state && DIFFICULTY_BY_ID[state.selectedDifficultyId];
+  if (diff && diff.targetMult > 1) {
+    target = Math.round((target * diff.targetMult) / 10) * 10;
   }
   return target;
 }
@@ -182,13 +187,19 @@ export function rollEdition() {
   return 'negative';
 }
 
+export function getShopPriceIncrease() {
+  const diff = typeof state !== 'undefined' && state ? DIFFICULTY_BY_ID[state.selectedDifficultyId] : null;
+  return diff ? (diff.priceAdd || 0) : 0;
+}
+
 export function createCardInstance(cardId, forcedEdition = null) {
   const def = CARD_BY_ID[cardId];
   const edition = forcedEdition || rollEdition();
   const edDef = EDITIONS[edition];
   const rawPrice = def.basePrice + edDef.priceAdd;
-  const price = Math.max(4, Math.min(8, rawPrice));
-  const sellValue = Math.max(2, Math.floor(price / 2));
+  const baseShopPrice = Math.max(4, Math.min(8, rawPrice));
+  const price = baseShopPrice + getShopPriceIncrease();
+  const sellValue = Math.max(2, Math.floor(baseShopPrice / 2));
   return {
     uid: nextUid++,
     cardId: def.id,
@@ -211,6 +222,7 @@ export const state = {
   mode: 'TITLE_MENU', // TITLE_MENU | CLOTH_SELECT | PLAYING | SCORING | CASH_OUT | POTION_PICK | ARTEFACT_PICK | SHOP | VICTORY | GAME_OVER
   modal: null,        // null | 'PAUSE' | 'GUIDE' | 'WORKSHOP' | 'CLONE_POTION'
   selectedClothId: 'BLUE',
+  selectedDifficultyId: 'OPEN_TABLE',
   crtEnabled: true,
   time: 0,
   stats: loadStats(),
@@ -310,7 +322,9 @@ export function getMaxArtefactSlots() {
   return BASE_MAX_ARTEFACT_SLOTS + getTicketStacks('RELIC_RACK') + (state.selectedClothId === 'MYTHIC_TEAL' ? 1 : 0);
 }
 export function getShopRerollCost() {
-  return Math.max(1, SHOP_REROLL_COST + (state.shopRerollsUsed || 0) - getTicketStacks('MEMBER_CARD') * 2);
+  const diff = DIFFICULTY_BY_ID[state.selectedDifficultyId];
+  const tax = diff ? (diff.rerollCostAdd || 0) : 0;
+  return Math.max(1, SHOP_REROLL_COST + tax + (state.shopRerollsUsed || 0) - getTicketStacks('MEMBER_CARD') * 2);
 }
 export function getStageMaxHands() {
   let base = BASE_HANDS + getTicketStacks('EXTRA_SLEEVE');
@@ -325,6 +339,8 @@ export function getStageMaxRerolls() {
   if (state.selectedClothId === 'MYTHIC_TEAL' || state.selectedClothId === 'WITCH_CLOTH' || state.selectedClothId === 'WHITE_SILK') {
     base -= 1;
   }
+  const diff = DIFFICULTY_BY_ID[state.selectedDifficultyId];
+  if (diff && diff.rerollDelta) base += diff.rerollDelta;
   const bossDebuff = state.selectedClothId !== 'PALLADINS_CLOTH' && state.activeBoss && state.activeBoss.id === 'TWO_REROLLS';
   return bossDebuff ? Math.max(0, base - 1) : Math.max(0, base);
 }

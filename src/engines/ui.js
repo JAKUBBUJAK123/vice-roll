@@ -6,7 +6,7 @@ import { TICKET_COST, TICKET_BY_ID } from '../config/tickets.js';
 import { DICE_SIDES, FACE_MOD_META } from '../config/dices.js';
 import { POTION_BY_ID, MAX_POTION_SLOTS } from '../config/potions.js';
 import { ARTEFACT_BY_ID } from '../config/artefacts.js';
-import { CLOTH_CATALOG, CLOTH_BY_ID } from '../config/cloths.js';
+import { CLOTH_CATALOG, CLOTH_BY_ID, DIFFICULTY_CATALOG, DIFFICULTY_BY_ID } from '../config/cloths.js';
 import {
   clamp,
   tracePixelRect,
@@ -18,6 +18,7 @@ import {
   drawArtefactIcon,
   drawTicketIcon,
   drawClothSwatch,
+  drawDifficultyIcon,
   wrapLines,
   getSuitColor,
   drawDie,
@@ -1297,6 +1298,7 @@ export function drawTitleScreen(ctx, state, uiCtx) {
 export function drawClothSelectScreen(ctx, state, uiCtx) {
   const { startNewRun, LOGICAL_W, LOGICAL_H } = uiCtx;
   const activeCloth = CLOTH_BY_ID[state.selectedClothId] || CLOTH_CATALOG[0];
+  const activeDiff = DIFFICULTY_BY_ID[state.selectedDifficultyId] || DIFFICULTY_CATALOG[0];
 
   // Subtle dark parlor backdrop
   ctx.fillStyle = 'rgba(7, 3, 16, 0.72)';
@@ -1386,41 +1388,84 @@ export function drawClothSelectScreen(ctx, state, uiCtx) {
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  ctx.font = '800 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.font = '800 10.5px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = COLORS.brassBright;
-  ctx.fillText('SELECTED TABLE CLOTH', rx + rw / 2, ry + 18);
+  ctx.fillText('SELECTED TABLE CLOTH', rx + rw / 2, ry + 14);
 
-  const bigSw = 148;
-  drawClothSwatch(ctx, activeCloth, rx + (rw - bigSw) / 2, ry + 44, bigSw, bigSw, {
+  const bigSw = 104;
+  drawClothSwatch(ctx, activeCloth, rx + (rw - bigSw) / 2, ry + 34, bigSw, bigSw, {
     selected: true
   });
 
-  ctx.font = '900 22px ui-sans-serif, system-ui, sans-serif';
+  ctx.font = '900 20px ui-sans-serif, system-ui, sans-serif';
   ctx.fillStyle = COLORS.textMain;
-  ctx.fillText(activeCloth.name, rx + rw / 2, ry + 210);
+  ctx.fillText(activeCloth.name, rx + rw / 2, ry + 148);
 
   // Tag pill
   ctx.fillStyle = 'rgba(10, 6, 20, 0.85)';
-  ctx.fillRect(rx + 84, ry + 244, rw - 168, 22);
-  ctx.font = '800 11px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillRect(rx + 88, ry + 176, rw - 176, 20);
+  ctx.font = '800 10.5px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = activeCloth.color;
   ctx.textBaseline = 'middle';
-  ctx.fillText(activeCloth.tag, rx + rw / 2, ry + 255);
+  ctx.fillText(activeCloth.tag, rx + rw / 2, ry + 186);
 
   // Effect description box
-  drawBevelPanel(ctx, rx + 22, ry + 280, rw - 44, 108, {
+  drawBevelPanel(ctx, rx + 20, ry + 204, rw - 40, 74, {
     fill: 'rgba(8, 5, 16, 0.72)',
     border: COLORS.railBorder,
     lip: 2,
     r: 10
   });
   ctx.textBaseline = 'top';
-  ctx.font = '600 13px ui-sans-serif, system-ui, sans-serif';
+  ctx.font = '600 12px ui-sans-serif, system-ui, sans-serif';
   ctx.fillStyle = '#EDE9FE';
-  const lines = wrapLines(ctx, activeCloth.desc, rw - 72);
-  lines.forEach((ln, i) => {
-    ctx.fillText(ln, rx + rw / 2, ry + 298 + i * 19);
+  const lines = wrapLines(ctx, activeCloth.desc, rw - 64);
+  lines.slice(0, 3).forEach((ln, i) => {
+    ctx.fillText(ln, rx + rw / 2, ry + 214 + i * 17);
   });
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.font = '800 10px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = COLORS.brassBright;
+  ctx.fillText('DIFFICULTY', rx + rw / 2, ry + 288);
+
+  const diffW = 54, diffH = 48, diffGap = 10;
+  const diffStartX = rx + (rw - (4 * diffW + 3 * diffGap)) / 2;
+  const diffY = ry + 306;
+  DIFFICULTY_CATALOG.forEach((diff, idx) => {
+    const dx = diffStartX + idx * (diffW + diffGap);
+    const dRect = { x: dx, y: diffY, w: diffW, h: diffH };
+    const dHover = hitTest(state.mouseX, state.mouseY, dRect);
+    const dSel = diff.id === activeDiff.id;
+
+    drawBevelPanel(ctx, dx, diffY, diffW, diffH, {
+      fill: dSel ? '#241842' : dHover ? '#1C1434' : '#0E091A',
+      border: dSel ? COLORS.goldLight : dHover ? diff.color : COLORS.railBorderBright,
+      lip: dSel ? 3 : 2,
+      r: 8,
+      glow: dSel ? `${diff.color}55` : null
+    });
+
+    drawDifficultyIcon(ctx, diff, dx + diffW / 2, diffY + diffH / 2, 34);
+
+    registerButton(ctx, state, `diff_pick_${diff.id}`, dx, diffY, diffW, diffH, '', {
+      drawInvisible: true,
+      onClick: () => {
+        sfx.cardSnap();
+        state.selectedDifficultyId = diff.id;
+      }
+    });
+  });
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.font = '800 12px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = activeDiff.color;
+  ctx.fillText(activeDiff.name, rx + rw / 2, ry + 360);
+  ctx.font = '600 10.5px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = COLORS.textMuted;
+  ctx.fillText(activeDiff.desc, rx + rw / 2, ry + 377);
 
   registerButton(ctx, state, 'cloth_start_run', rx + 24, ry + rh - 102, rw - 48, 54, 'START RUN ▸', {
     fill: '#0F766E',
@@ -1429,7 +1474,7 @@ export function drawClothSelectScreen(ctx, state, uiCtx) {
     fontSize: 19,
     sublabel: '[Enter / Space]',
     glow: 'rgba(45, 212, 191, 0.35)',
-    onClick: () => startNewRun(activeCloth.id)
+    onClick: () => startNewRun(activeCloth.id, activeDiff.id)
   });
 
   registerButton(ctx, state, 'cloth_back', rx + 64, ry + rh - 38, rw - 128, 28, '← BACK TO TITLE', {
