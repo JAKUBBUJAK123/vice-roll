@@ -2,7 +2,7 @@ import { COLORS } from '../config/colors.js';
 import { EDITIONS } from '../config/editions.js';
 import { HANDS, HAND_ORDER } from '../config/hands.js';
 import { SUIT_SYMBOLS, CARD_BY_ID } from '../config/cards.js';
-import { TICKET_COST } from '../config/tickets.js';
+import { TICKET_COST, TICKET_BY_ID } from '../config/tickets.js';
 import { DICE_SIDES, FACE_MOD_META } from '../config/dices.js';
 import { POTION_BY_ID, MAX_POTION_SLOTS } from '../config/potions.js';
 import { ARTEFACT_BY_ID } from '../config/artefacts.js';
@@ -41,8 +41,8 @@ export function hitTest(px, py, rect) {
 
 // Bottom Art-Deco Arcana Card Dock Layout (Centered across the bottom of the table)
 export function getActiveCardLayout(state) {
-  const trayX = 140;
-  const trayW = 1000;
+  const trayX = 200;
+  const trayW = 880;
   const count = state.activeCards.length;
   const cardW = count > 6 ? Math.max(84, Math.floor((trayW - (count - 1) * 10) / count)) : 112;
   const cardH = Math.round(cardW * 1.36);
@@ -402,7 +402,7 @@ export function drawModifierCardTray(ctx, state, uiCtx) {
     sellActiveCard
   } = uiCtx;
 
-  const x = 140, y = 554, w = 1000, h = 192;
+  const x = 200, y = 554, w = 880, h = 192;
   drawBevelPanel(ctx, x, y, w, h, {
     fill: 'rgba(15, 10, 28, 0.86)',
     border: COLORS.railBorderBright,
@@ -715,7 +715,7 @@ export function drawCashOutPanel(ctx, state, uiCtx) {
   const { getStageLabel, claimCashOut } = uiCtx;
   const d = state.cashOutData;
   if (!d) return;
-  const extraRows = (d.cardRerollsBonus > 0 ? 1 : 0) + (d.cardHandsBonus > 0 ? 1 : 0) + (d.artefactBonus > 0 ? 1 : 0);
+  const extraRows = (d.cardRerollsBonus > 0 ? 1 : 0) + (d.cardHandsBonus > 0 ? 1 : 0) + (d.artefactBonus > 0 ? 1 : 0) + (d.clothBonus > 0 ? 1 : 0);
   const w = 600, h = 344 + extraRows * 38;
   const x = (1280 - w) / 2, y = 186 - extraRows * 19;
   drawBevelPanel(ctx, x, y, w, h, {
@@ -749,6 +749,9 @@ export function drawCashOutPanel(ctx, state, uiCtx) {
   }
   if (d.artefactBonus > 0) {
     rows.push({ label: `Artefact Bonus (Greed Curse)`, val: `+$${d.artefactBonus}`, show: state.cashOutReveal >= 0.75 });
+  }
+  if (d.clothBonus > 0) {
+    rows.push({ label: `White Silk Payout Bonus`, val: `+$${d.clothBonus}`, show: state.cashOutReveal >= 0.75 });
   }
 
   let ry = y + 96;
@@ -1436,6 +1439,180 @@ export function drawClothSelectScreen(ctx, state, uiCtx) {
     lip: 2,
     onClick: () => { sfx.click(); state.mode = 'TITLE_MENU'; }
   });
+}
+
+export function drawBottomSidePanels(ctx, state) {
+  const lx = 16, ly = 554, lw = 174, lh = 192;
+  const cloth = CLOTH_BY_ID[state.selectedClothId] || CLOTH_CATALOG[0];
+  const clothRect = { x: lx, y: ly, w: lw, h: lh };
+  const clothHovered = !state.modal && hitTest(state.mouseX, state.mouseY, clothRect);
+  if (clothHovered) {
+    state.hoveredCloth = { cloth, rect: clothRect };
+  }
+
+  drawBevelPanel(ctx, lx, ly, lw, lh, {
+    fill: clothHovered ? '#1D1434' : 'rgba(15, 10, 28, 0.88)',
+    border: clothHovered ? cloth.color : COLORS.railBorderBright,
+    lip: 4,
+    r: 12
+  });
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.font = '800 10.5px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = COLORS.brassBright;
+  ctx.fillText('TABLE CLOTH', lx + lw / 2, ly + 10);
+
+  const swSize = 84;
+  drawClothSwatch(ctx, cloth, lx + (lw - swSize) / 2, ly + 30, swSize, swSize, {
+    selected: true,
+    hovered: clothHovered
+  });
+
+  ctx.font = '800 13px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = COLORS.textMain;
+  const nameLines = wrapLines(ctx, cloth.name, lw - 18);
+  nameLines.slice(0, 2).forEach((ln, i) => {
+    ctx.fillText(ln, lx + lw / 2, ly + 122 + i * 16);
+  });
+
+  ctx.fillStyle = 'rgba(10, 6, 20, 0.85)';
+  ctx.fillRect(lx + 26, ly + lh - 32, lw - 52, 18);
+  ctx.textBaseline = 'middle';
+  ctx.font = '800 10px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = cloth.color;
+  ctx.fillText(cloth.tag, lx + lw / 2, ly + lh - 23);
+
+  const rx = 1090, ry = 554, rw = 174, rh = 192;
+  const ownedEntries = Object.entries(state.tickets || {}).filter(([, count]) => count > 0);
+  const totalTickets = ownedEntries.reduce((sum, [, count]) => sum + count, 0);
+
+  drawBevelPanel(ctx, rx, ry, rw, rh, {
+    fill: 'rgba(15, 10, 28, 0.88)',
+    border: totalTickets > 0 ? COLORS.brass : COLORS.railBorderBright,
+    lip: 4,
+    r: 12
+  });
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.font = '800 10.5px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = COLORS.brassBright;
+  ctx.fillText(`TICKETS (${totalTickets})`, rx + rw / 2, ry + 10);
+
+  if (ownedEntries.length === 0) {
+    ctx.font = '600 12px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = COLORS.textDim;
+    ctx.textBaseline = 'middle';
+    ctx.fillText('No Tickets', rx + rw / 2, ry + rh / 2 - 6);
+    ctx.font = '600 10.5px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillText('Redeem in Bazaar', rx + rw / 2, ry + rh / 2 + 13);
+  } else {
+    const cols = ownedEntries.length > 4 ? 3 : 2;
+    const rows = Math.ceil(ownedEntries.length / cols);
+    const gap = 7;
+    const availW = rw - 20;
+    const availH = rh - 40;
+    const tileW = Math.min(54, Math.floor((availW - (cols - 1) * gap) / cols));
+    const tileH = Math.min(50, Math.floor((availH - (rows - 1) * gap) / rows));
+    const startX = rx + Math.floor((rw - (cols * tileW + (cols - 1) * gap)) / 2);
+    const startY = ry + 30;
+
+    ownedEntries.forEach(([tId, count], idx) => {
+      const ticket = TICKET_BY_ID[tId];
+      if (!ticket) return;
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+      const tx = startX + col * (tileW + gap);
+      const ty = startY + row * (tileH + gap);
+      const rect = { x: tx, y: ty, w: tileW, h: tileH };
+      const hovered = !state.modal && hitTest(state.mouseX, state.mouseY, rect);
+      if (hovered) {
+        state.hoveredTicket = { ticket, count, rect };
+      }
+
+      drawBevelPanel(ctx, tx, ty, tileW, tileH, {
+        fill: hovered ? '#241842' : '#120C22',
+        border: hovered ? COLORS.goldLight : ticket.color,
+        lip: 2,
+        r: 7
+      });
+
+      drawTicketIcon(ctx, ticket, tx + tileW / 2, ty + tileH / 2, Math.min(13, tileH * 0.34), state.time);
+
+      if (count > 1) {
+        ctx.fillStyle = 'rgba(10, 6, 20, 0.92)';
+        ctx.fillRect(tx + tileW - 18, ty + tileH - 13, 16, 11);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '900 9px ui-monospace, SFMono-Regular, Menlo, monospace';
+        ctx.fillStyle = COLORS.goldLight;
+        ctx.fillText(`x${count}`, tx + tileW - 10, ty + tileH - 7.5);
+      }
+    });
+  }
+}
+
+export function drawClothAndTicketTooltips(ctx, state, uiCtx) {
+  if (state.modal) return;
+  const { LOGICAL_W, LOGICAL_H } = uiCtx;
+
+  const target = state.hoveredCloth
+    ? {
+        title: state.hoveredCloth.cloth.name,
+        badge: state.hoveredCloth.cloth.tag,
+        color: state.hoveredCloth.cloth.color,
+        desc: state.hoveredCloth.cloth.desc,
+        rect: state.hoveredCloth.rect
+      }
+    : state.hoveredTicket
+      ? {
+          title: state.hoveredTicket.ticket.name,
+          badge: state.hoveredTicket.count > 1 ? `OWNED ×${state.hoveredTicket.count}` : 'TICKET',
+          color: state.hoveredTicket.ticket.color,
+          desc: state.hoveredTicket.ticket.desc,
+          rect: state.hoveredTicket.rect
+        }
+      : null;
+
+  if (!target) return;
+
+  const tipW = 276;
+  ctx.font = '600 12.5px ui-sans-serif, system-ui, sans-serif';
+  const descLines = wrapLines(ctx, target.desc, tipW - 26);
+  const tipH = 66 + descLines.length * 17;
+
+  const tx = clamp(target.rect.x + target.rect.w / 2 - tipW / 2, 18, LOGICAL_W - tipW - 18);
+  const ty = clamp(target.rect.y - tipH - 12, 14, LOGICAL_H - tipH - 14);
+
+  drawBevelPanel(ctx, tx, ty, tipW, tipH, {
+    fill: 'rgba(14, 10, 26, 0.97)',
+    border: target.color,
+    lip: 4,
+    r: 10,
+    glow: 'rgba(0,0,0,0.65)'
+  });
+
+  let curY = ty + 12;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.font = '800 14px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = COLORS.textMain;
+  ctx.fillText(target.title, tx + 13, curY);
+
+  ctx.textAlign = 'right';
+  ctx.font = '800 10.5px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = target.color;
+  ctx.fillText(target.badge, tx + tipW - 13, curY + 2);
+
+  curY += 24;
+  ctx.textAlign = 'left';
+  ctx.font = '600 12.5px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = '#EDE9FE';
+  for (const line of descLines) {
+    ctx.fillText(line, tx + 13, curY);
+    curY += 17;
+  }
 }
 
 export function drawEndModal(ctx, state, isVictory, uiCtx) {

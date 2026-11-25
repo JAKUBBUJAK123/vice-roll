@@ -6,7 +6,7 @@ import { CARD_BY_ID } from '../config/cards.js';
 import { lerp, updateGraphicsEffects, drawParticlesAndPopups, drawCRTOverlay, drawHitFlash, drawTableBackground } from '../engines/graphicEngine.js';
 import { sfx } from '../engines/soundEngine.js';
 import {
-  drawLeftHUD, drawModifierCardTray, drawPlayArena, drawDieInspectorTooltip, drawCashOutPanel,
+  drawLeftHUD, drawModifierCardTray, drawBottomSidePanels, drawClothAndTicketTooltips, drawPlayArena, drawDieInspectorTooltip, drawCashOutPanel,
   drawShopArena, drawCardTooltip, drawPotionTray, drawPotionTooltip, drawPotionPickScreen,
   drawArtefactTray, drawArtefactTooltip, drawArtefactPickScreen, drawTitleScreen, drawClothSelectScreen, drawEndModal, drawOverlayModal
 } from '../engines/ui.js';
@@ -138,6 +138,8 @@ function render() {
   state.hoveredCard = null;
   state.hoveredPotion = null;
   state.hoveredArtefact = null;
+  state.hoveredCloth = null;
+  state.hoveredTicket = null;
   state.hoveredDieIdx = (state.mode === 'PLAYING' && !state.modal)
     ? findHoveredDieIndex(state, state.mouseX, state.mouseY)
     : -1;
@@ -156,6 +158,7 @@ function render() {
   } else {
     drawLeftHUD(ctx, state, uiCtx);
     drawModifierCardTray(ctx, state, uiCtx);
+    drawBottomSidePanels(ctx, state);
     if (state.mode === 'PLAYING' || state.mode === 'SCORING') drawPlayArena(ctx, state, uiCtx);
     else if (state.mode === 'CASH_OUT') drawCashOutPanel(ctx, state, uiCtx);
     else if (state.mode === 'POTION_PICK') drawPotionPickScreen(ctx, state, uiCtx);
@@ -171,6 +174,7 @@ function render() {
   drawCardTooltip(ctx, state, uiCtx);
   drawPotionTooltip(ctx, state, uiCtx);
   drawArtefactTooltip(ctx, state, uiCtx);
+  drawClothAndTicketTooltips(ctx, state, uiCtx);
   drawDieInspectorTooltip(ctx, state, uiCtx);
   drawOverlayModal(ctx, state, uiCtx);
   drawHitFlash(ctx, state, LOGICAL_W, LOGICAL_H);
@@ -182,7 +186,7 @@ function render() {
   if (state.drag && state.drag.active) cursor = 'grabbing';
   else if (state.hoverButtonId) cursor = 'pointer';
   else if (state.hoveredCard) cursor = state.hoveredCard.zone === 'active' ? 'grab' : 'pointer';
-  else if (state.hoveredPotion || state.hoveredArtefact) cursor = 'pointer';
+  else if (state.hoveredPotion || state.hoveredArtefact || state.hoveredCloth || state.hoveredTicket) cursor = 'pointer';
   else if (state.hoveredDieIdx !== -1) cursor = 'pointer';
   canvas.style.cursor = cursor;
 }

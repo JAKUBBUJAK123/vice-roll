@@ -4,7 +4,8 @@
 const MUSIC_TRACKS = [
   new URL('../assets/music/soundtrack1.wav', import.meta.url).href,
   new URL('../assets/music/soundtrack2.wav', import.meta.url).href,
-  new URL('../assets/music/soundtrack3.wav', import.meta.url).href
+  new URL('../assets/music/soundtrack3.wav', import.meta.url).href,
+  new URL('../assets/music/soundtrack4.wav', import.meta.url).href
 ];
 
 export class SoundEngine {

@@ -1,7 +1,10 @@
 import { COLORS } from '../config/colors.js';
 import { EDITIONS } from '../config/editions.js';
 import { CARD_BY_ID } from '../config/cards.js';
-import { ARTEFACT_BY_ID } from '../config/artefacts.js';
+import { TICKET_CATALOG } from '../config/tickets.js';
+import { POTION_CATALOG } from '../config/potions.js';
+import { ARTEFACT_CATALOG, ARTEFACT_BY_ID } from '../config/artefacts.js';
+import { CLOTH_BY_ID } from '../config/cloths.js';
 import { DICE_COUNT, DICE_SIDES, FACE_MOD_META, createPoolDie, createFreshDice } from '../config/dices.js';
 import { sfx } from '../engines/soundEngine.js';
 import { fmtNum, fmtMult } from '../engines/ui.js';
@@ -24,7 +27,8 @@ export function startNewRun(clothId = null) {
   if (clothId) state.selectedClothId = clothId;
   state.stage = 1;
   state.endless = false;
-  state.money = 4000000;
+  // state.money = 4 + (state.selectedClothId === 'WHITE_SILK' ? 20 : 0);
+  state.money =20000000000;
   state.tickets = {};
   state.dicePool = Array.from({ length: DICE_COUNT }, (_, i) => createPoolDie(i));
   state.currentTicketStake = 0;
@@ -50,6 +54,25 @@ export function startNewRun(clothId = null) {
   state.modal = null;
   state.focusedActiveUid = null;
   state.drag = null;
+
+  // Cloth starting bonuses
+  if (state.selectedClothId === 'GILDED_IVORY' && TICKET_CATALOG.length > 0) {
+    const t = TICKET_CATALOG[Math.floor(Math.random() * TICKET_CATALOG.length)];
+    state.tickets[t.id] = 1;
+    if (t.id === 'HEAVY_CUP') {
+      state.dicePool.push(createPoolDie(state.dicePool.length));
+    }
+    showNotice(`Gilded Ivory granted Ticket: ${t.name}!`, 2.6);
+  } else if (state.selectedClothId === 'MYTHIC_TEAL' && ARTEFACT_CATALOG.length > 0) {
+    const a = ARTEFACT_CATALOG[Math.floor(Math.random() * ARTEFACT_CATALOG.length)];
+    state.artefacts.push(a.id);
+    showNotice(`Mythic Teal granted Artefact: ${a.name}!`, 2.6);
+  } else if (state.selectedClothId === 'WITCH_CLOTH' && POTION_CATALOG.length > 0) {
+    const p = POTION_CATALOG[Math.floor(Math.random() * POTION_CATALOG.length)];
+    state.potions.push({ id: p.id, bounce: 1, flash: 1 });
+    showNotice(`Witch Cloth brewed: ${p.name}!`, 2.6);
+  }
+
   startStage(1);
 }
 
@@ -195,6 +218,7 @@ export function updateLivePreview() {
 
 export function isDieDebuffedByBoss(val) {
   if (val % 2 === 1 && hasArtefact('RED_CROWN')) return true;
+  if (state.selectedClothId === 'PALLADINS_CLOTH') return false;
   if (!state.activeBoss) return false;
   if (state.activeBoss.id === 'EVEN_ZERO' && val % 2 === 0) return true;
   if (state.activeBoss.id === 'ODD_ZERO' && val % 2 === 1) return true;
@@ -202,6 +226,7 @@ export function isDieDebuffedByBoss(val) {
 }
 
 export function isCardDebuffedByBoss(cardIndex) {
+  if (state.selectedClothId === 'PALLADINS_CLOTH') return false;
   return Boolean(state.activeBoss && state.activeBoss.id === 'DISABLE_FIRST' && cardIndex === 0);
 }
 
@@ -214,7 +239,7 @@ export function playSelectedHand() {
     showNotice(`Select 1 to ${maxSelect} dice to score a hand`, 1.5);
     return;
   }
-  if (state.activeBoss && state.activeBoss.id === 'MIN_TWO_DICE' && playedDice.length < 2) {
+  if (state.selectedClothId !== 'PALLADINS_CLOTH' && state.activeBoss && state.activeBoss.id === 'MIN_TWO_DICE' && playedDice.length < 2) {
     sfx.error();
     showNotice('The Heavy Felt requires at least 2 dice!', 1.8);
     return;
@@ -457,6 +482,19 @@ export function playSelectedHand() {
     }
   }
 
+  if (state.selectedClothId === 'CRIMSON_VELVET' && state.activeCards.length > 0) {
+    const multFactor = Math.pow(2, state.activeCards.length);
+    steps.push({
+      type: 'CLOTH_EVENT',
+      clothId: 'CRIMSON_VELVET',
+      multMul: multFactor,
+      label: `Crimson Velvet x${multFactor}`,
+      color: '#FB7185',
+      sfx: 'xmult',
+      duration: 0.38
+    });
+  }
+
   if (state.potionScoreMult > 1) {
     steps.push({
       type: 'POTION_MULT',
@@ -680,6 +718,18 @@ export function executeScoringStep(step) {
     return;
   }
 
+  if (step.type === 'CLOTH_EVENT') {
+    const cloth = CLOTH_BY_ID[step.clothId];
+    state.scoringStepCount++;
+    if (step.multMul) state.mult = Math.round(state.mult * step.multMul * 100) / 100;
+    state.scoringBanner = `${cloth ? cloth.name : 'Cloth'}  →  ${step.label}`;
+    spawnPopup(640, 520, step.label, step.color, 26);
+    spawnParticles(640, 560, 20, [step.color, '#FFFFFF', '#FDE047'], 80, 230);
+    addShake(6);
+    sfx.scoreStep(state.scoringStepCount, step.sfx || 'xmult');
+    return;
+  }
+
   if (step.type === 'POTION_MULT') {
     state.scoringStepCount++;
     state.mult = Math.round(state.mult * step.multMul * 100) / 100;
@@ -786,7 +836,8 @@ export function finishScoringPhase() {
     });
 
     const artefactBonus = hasArtefact('GREED_CURSE') ? 5 : 0;
-    const total = baseReward + handsBonus + interest + cardRerollsBonus + cardHandsBonus + artefactBonus;
+    const clothBonus = state.selectedClothId === 'WHITE_SILK' ? Math.max(2, Math.round(baseReward * 0.5)) : 0;
+    const total = baseReward + handsBonus + interest + cardRerollsBonus + cardHandsBonus + artefactBonus + clothBonus;
     state.cashOutData = {
       baseReward,
       handsBonus,
@@ -795,6 +846,7 @@ export function finishScoringPhase() {
       cardRerollsBonus,
       cardHandsBonus,
       artefactBonus,
+      clothBonus,
       cardTriggers: cashOutCardTriggers,
       interest,
       total,

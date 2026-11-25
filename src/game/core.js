@@ -65,12 +65,19 @@ export function saveStats(stats) {
 }
 
 export function getStageTarget(stage) {
-  if (stage <= STAGE_TARGETS.length) return STAGE_TARGETS[stage - 1];
-  let v = STAGE_TARGETS[STAGE_TARGETS.length - 1];
-  for (let s = STAGE_TARGETS.length + 1; s <= stage; s++) {
-    v = Math.round((v * 2.35) / 100) * 100;
+  let target;
+  if (stage <= STAGE_TARGETS.length) {
+    target = STAGE_TARGETS[stage - 1];
+  } else {
+    target = STAGE_TARGETS[STAGE_TARGETS.length - 1];
+    for (let s = STAGE_TARGETS.length + 1; s <= stage; s++) {
+      target = Math.round((target * 2.35) / 100) * 100;
+    }
   }
-  return v;
+  if (state && state.selectedClothId === 'PALLADINS_CLOTH') {
+    target = Math.round((target * 1.35) / 10) * 10;
+  }
+  return target;
 }
 
 export function getStageLabel(stage) {
@@ -203,7 +210,7 @@ export function createCardInstance(cardId, forcedEdition = null) {
 export const state = {
   mode: 'TITLE_MENU', // TITLE_MENU | CLOTH_SELECT | PLAYING | SCORING | CASH_OUT | POTION_PICK | ARTEFACT_PICK | SHOP | VICTORY | GAME_OVER
   modal: null,        // null | 'PAUSE' | 'GUIDE' | 'WORKSHOP' | 'CLONE_POTION'
-  selectedClothId: 'SAPPHIRE_GOLD',
+  selectedClothId: 'BLUE',
   crtEnabled: true,
   time: 0,
   stats: loadStats(),
@@ -270,6 +277,8 @@ export const state = {
   mouseX: -999,
   mouseY: -999,
   hoveredCard: null,
+  hoveredCloth: null,
+  hoveredTicket: null,
   hoveredDieIdx: -1,
   focusedActiveUid: null,
   drag: null,
@@ -295,25 +304,33 @@ export function hasArtefact(id) {
   return Array.isArray(state.artefacts) && state.artefacts.includes(id);
 }
 export function getMaxPotionSlots() {
-  return MAX_POTION_SLOTS + (hasArtefact('ALCHEMY_BELT') ? 1 : 0);
+  return MAX_POTION_SLOTS + (hasArtefact('ALCHEMY_BELT') ? 1 : 0) + (state.selectedClothId === 'WITCH_CLOTH' ? 1 : 0);
 }
 export function getMaxArtefactSlots() {
-  return BASE_MAX_ARTEFACT_SLOTS + getTicketStacks('RELIC_RACK');
+  return BASE_MAX_ARTEFACT_SLOTS + getTicketStacks('RELIC_RACK') + (state.selectedClothId === 'MYTHIC_TEAL' ? 1 : 0);
 }
 export function getShopRerollCost() {
   return Math.max(1, SHOP_REROLL_COST + (state.shopRerollsUsed || 0) - getTicketStacks('MEMBER_CARD') * 2);
 }
 export function getStageMaxHands() {
   let base = BASE_HANDS + getTicketStacks('EXTRA_SLEEVE');
+  if (state.selectedClothId === 'PALLADINS_CLOTH') base += 1;
+  if (state.selectedClothId === 'MYTHIC_TEAL' || state.selectedClothId === 'WHITE_SILK') base -= 1;
   if (hasArtefact('GREED_CURSE')) base -= 1;
-  return (state.activeBoss && state.activeBoss.id === 'THREE_HANDS') ? Math.max(1, base - 1) : Math.max(1, base);
+  const bossDebuff = state.selectedClothId !== 'PALLADINS_CLOTH' && state.activeBoss && state.activeBoss.id === 'THREE_HANDS';
+  return bossDebuff ? Math.max(1, base - 1) : Math.max(1, base);
 }
 export function getStageMaxRerolls() {
-  const base = BASE_REROLLS + getTicketStacks('LOADED_WRIST');
-  return (state.activeBoss && state.activeBoss.id === 'TWO_REROLLS') ? Math.max(0, base - 1) : base;
+  let base = BASE_REROLLS + getTicketStacks('LOADED_WRIST');
+  if (state.selectedClothId === 'MYTHIC_TEAL' || state.selectedClothId === 'WITCH_CLOTH' || state.selectedClothId === 'WHITE_SILK') {
+    base -= 1;
+  }
+  const bossDebuff = state.selectedClothId !== 'PALLADINS_CLOTH' && state.activeBoss && state.activeBoss.id === 'TWO_REROLLS';
+  return bossDebuff ? Math.max(0, base - 1) : Math.max(0, base);
 }
 export function getBaseCardSlots() {
-  return BASE_MAX_SLOTS + getTicketStacks('CARD_SHARK');
+  const baseSlots = state.selectedClothId === 'CRIMSON_VELVET' ? 4 : BASE_MAX_SLOTS;
+  return baseSlots + getTicketStacks('CARD_SHARK');
 }
 export function getMaxCardSlots() {
   let negs = 0;
