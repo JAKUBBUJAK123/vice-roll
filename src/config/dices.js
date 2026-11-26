@@ -32,11 +32,11 @@ export const FACE_MOD_META = {
     bg: '#4C0519',
     desc: '+15 Mult when this face is scored'
   },
-  chips: {
-    id: 'chips',
+  sapphire: {
+    id: 'sapphire',
     name: 'Sapphire Stone',
     short: 'SAPPHIRE',
-    badge: '+50C',
+    badge: '+50P',
     color: '#38BDF8',
     border: '#0284C7',
     bg: '#082F49',
@@ -52,8 +52,8 @@ export const FACE_MOD_META = {
     bg: '#422006',
     desc: '+$3 immediately when this face is scored'
   },
-  glass: {
-    id: 'glass',
+  emerald: {
+    id: 'emerald',
     name: 'Emerald Stone',
     short: 'Emerald',
     badge: 'x2M',
@@ -101,7 +101,7 @@ export const DICE_UPGRADE_CATALOG = [
     tag: '+50 BASE',
     price: WORKSHOP_UPGRADE_COST,
     type: 'mod',
-    mod: 'chips',
+    mod: 'sapphire',
     color: '#38BDF8',
     desc: 'Inlays a die face with Sapphire: triggers +50 Base Points when scored.'
   },
@@ -116,12 +116,12 @@ export const DICE_UPGRADE_CATALOG = [
     desc: 'Gilds a die face with Topaz: grants +$3 whenever scored.'
   },
   {
-    id: 'GLASS_FACE',
+    id: 'EMERALD_INLAY',
     name: 'Emerald Stone',
     tag: 'x2 MULT',
     price: WORKSHOP_UPGRADE_COST,
     type: 'mod',
-    mod: 'glass',
+    mod: 'emerald',
     color: '#A5F3FC',
     desc: 'Crystallizes a die face: x2 Mult when scored (25% chance to shatter).'
   },
@@ -217,7 +217,7 @@ export function createFreshDice(dicePool = null) {
       scale: 1,
       hop: 0,
       flash: 0,
-      flashColor: COLORS.chipsLight
+      flashColor: COLORS.baseLight
     });
   }
   return arr;

@@ -28,13 +28,13 @@ export const STAGE_TARGETS = [
 ];
 
 export const BOSS_MODIFIERS = [
-  { id: 'EVEN_ZERO', name: 'The Even Drain', short: 'Even dice give 0 Chips',
-    desc: 'All even dice (2, 4, 6, 8...) contribute 0 pip Chips when scored.' },
+  { id: 'EVEN_ZERO', name: 'The Even Drain', short: 'Even dice give 0 Points',
+    desc: 'All even dice (2, 4, 6, 8...) contribute 0 pip Points when scored.' },
   { id: 'TWO_REROLLS', name: 'The Tight Grip', short: '-1 Reroll this chapter',
     desc: 'Start this chapter with 1 fewer Reroll than usual.' },
-  { id: 'ODD_ZERO', name: 'The Odd Tax', short: 'Odd dice give 0 Chips',
-    desc: 'All odd dice (1, 3, 5, 7...) contribute 0 pip Chips when scored.' },
-  { id: 'DISABLE_FIRST', name: 'The Blind Eye', short: 'First card slot disabled',
+  { id: 'ODD_ZERO', name: 'The Odd Tax', short: 'Odd dice give 0 Points',
+    desc: 'All odd dice (1, 3, 5, 7...) contribute 0 pip Points when scored.' },
+  { id: 'DISABLE_FIRST', name: 'The Veiled Eye', short: 'First card slot disabled',
     desc: 'Your leftmost modifier card is debuffed. Reorder cards to adapt!' },
   { id: 'THREE_HANDS', name: 'The Short Stack', short: '-1 Hand this chapter',
     desc: 'Start this chapter with 1 fewer Hand than usual.' },
@@ -144,7 +144,7 @@ export function resolveDiceAndEvaluateHand(selectedDice) {
   const scaleHand = (h) => {
     const cMult = (typeof state !== 'undefined' && state && state.comboUpgradeMult) ? state.comboUpgradeMult : 1;
     return (h && cMult > 1)
-      ? { ...h, chips: Math.round(h.chips * cMult), mult: Math.round(h.mult * cMult) }
+      ? { ...h, basePoints: Math.round(h.basePoints * cMult), mult: Math.round(h.mult * cMult) }
       : h;
   };
 
@@ -165,7 +165,7 @@ export function resolveDiceAndEvaluateHand(selectedDice) {
     if (wIdx >= wildIndices.length) {
       const h = evaluateConcreteValues(currentVals);
       const pipSum = currentVals.reduce((a, b) => a + b, 0);
-      const metric = (h.chips * h.mult) * 1000 + pipSum;
+      const metric = (h.basePoints * h.mult) * 1000 + pipSum;
       if (metric > bestScoreMetric) {
         bestScoreMetric = metric;
         bestHand = h;
@@ -189,16 +189,16 @@ export function rollEdition() {
   const r = Math.random() * 100;
   if (typeof state !== 'undefined' && state && hasArtefact('DIAMOND')) {
     if (r < 42) return 'standard';
-    if (r < 64) return 'foil';
-    if (r < 83) return 'holographic';
-    if (r < 95) return 'polychrome';
-    return 'negative';
+    if (r < 64) return 'gilded';
+    if (r < 83) return 'crimson';
+    if (r < 95) return 'prism';
+    return 'void';
   }
   if (r < 80) return 'standard';
-  if (r < 88) return 'foil';
-  if (r < 95) return 'holographic';
-  if (r < 98) return 'polychrome';
-  return 'negative';
+  if (r < 88) return 'gilded';
+  if (r < 95) return 'crimson';
+  if (r < 98) return 'prism';
+  return 'void';
 }
 
 export function getShopPriceIncrease() {
@@ -275,7 +275,7 @@ export const state = {
   workshopTarget: null,
   workshopDieIdx: 0,
 
-  chips: 0,
+  basePoints: 0,
   mult: 0,
   liveHandName: '',
   scoringHandTotal: 0,
@@ -373,13 +373,13 @@ export function getBaseCardSlots() {
   return baseSlots + getTicketStacks('CARD_SHARK');
 }
 export function getMaxCardSlots() {
-  let negs = 0;
-  for (const c of state.activeCards) if (c.edition === 'negative') negs++;
-  return getBaseCardSlots() + negs;
+  let voidCount = 0;
+  for (const c of state.activeCards) if (c.edition === 'void') voidCount++;
+  return getBaseCardSlots() + voidCount;
 }
 export function getUsedCardSlots() {
   let count = 0;
-  for (const c of state.activeCards) if (c.edition !== 'negative') count++;
+  for (const c of state.activeCards) if (c.edition !== 'void') count++;
   return count;
 }
 export function getShopCardSlotCount() {
@@ -401,10 +401,10 @@ export function spawnParticles(x, y, count, palette, speedMin = 80, speedMax = 3
 export function initTitleBackdrop() {
   state.titleDice = TITLE_DICE.map(d => ({ ...d }));
   state.titleCards = [
-    createCardInstance('KS', 'foil'),
-    createCardInstance('AH', 'holographic'),
-    createCardInstance('KD', 'polychrome'),
-    createCardInstance('QH', 'negative'),
+    createCardInstance('KS', 'gilded'),
+    createCardInstance('AH', 'crimson'),
+    createCardInstance('KD', 'prism'),
+    createCardInstance('QH', 'void'),
     createCardInstance('7D', 'standard')
   ];
 }

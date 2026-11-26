@@ -31,7 +31,7 @@ export function claimCashOut() {
     saveStats(state.stats);
     state.mode = 'VICTORY';
     sfx.victory();
-    spawnParticles(640, 320, 80, [COLORS.goldLight, COLORS.emerald, COLORS.chipsLight, '#F472B6'], 120, 420);
+    spawnParticles(640, 320, 80, [COLORS.goldLight, COLORS.emerald, COLORS.baseLight, '#F472B6'], 120, 420);
     return;
   }
 
@@ -230,7 +230,7 @@ export function usePotion(slotIdx) {
     sfx.buyCard();
     spawnPopup(640, 140, '2x COMBO VALUES!', '#FB923C', 26);
     spawnParticles(640, 140, 24, ['#FB923C', '#FED7AA', '#FFFFFF'], 80, 230);
-    showNotice(`Inferno Potion: hand combo Chips & Mult are ${state.comboUpgradeMult}x for this round!`, 2.4);
+    showNotice(`Inferno Potion: hand combo Base Points & Mult are ${state.comboUpgradeMult}x for this round!`, 2.4);
     updateLivePreview();
   } else if (pot.id === 'GHOST') {
     if (state.mode !== 'PLAYING') {
@@ -544,8 +544,8 @@ export function buyShopCard(shopIdx) {
     showNotice('Not enough money ($' + card.price + ' required)', 1.4);
     return;
   }
-  const isNeg = card.edition === 'negative';
-  if (!isNeg && state.activeCards.length >= getMaxCardSlots()) {
+  const isVoid = card.edition === 'void';
+  if (!isVoid && state.activeCards.length >= getMaxCardSlots()) {
     sfx.error();
     showNotice('Card dock full — sell a card first!', 1.6);
     return;

@@ -156,7 +156,7 @@ export function drawLeftHUD(ctx, state, uiCtx) {
 
   // Left Section: Chapter / Stage Badge & Boss curse
   const isBoss = Boolean(state.activeBoss);
-  const blindLabel = getStageLabel(state.stage);
+  const stageLabel = getStageLabel(state.stage);
   const stageStr = state.endless ? `ENDLESS ${state.stage}` : `CHAPTER ${state.stage} / 9`;
 
   drawBevelPanel(ctx, rx + 12, ry + 10, 240, rh - 20, {
@@ -170,7 +170,7 @@ export function drawLeftHUD(ctx, state, uiCtx) {
   ctx.textBaseline = 'top';
   ctx.font = '800 11px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = isBoss ? COLORS.multLight : COLORS.brassBright;
-  ctx.fillText(stageStr + ' · ' + blindLabel, rx + 24, ry + 17);
+  ctx.fillText(stageStr + ' · ' + stageLabel, rx + 24, ry + 17);
 
   if (isBoss) {
     ctx.font = '800 13px ui-sans-serif, system-ui, sans-serif';
@@ -185,7 +185,7 @@ export function drawLeftHUD(ctx, state, uiCtx) {
     ctx.fillStyle = COLORS.textMain;
     ctx.fillText('Velvet Parlor Table', rx + 24, ry + 34);
     ctx.font = '600 11px ui-monospace, SFMono-Regular, Menlo, monospace';
-    ctx.fillStyle = ticketCount > 0 ? COLORS.chipsLight : COLORS.textMuted;
+    ctx.fillStyle = ticketCount > 0 ? COLORS.baseLight : COLORS.textMuted;
     ctx.fillText(
       ticketCount > 0
         ? `${state.dicePool.length}d Pool · Max ${getMaxSelectDice()} Combo · ${ticketCount} Ticket${ticketCount > 1 ? 's' : ''}`
@@ -229,7 +229,7 @@ export function drawLeftHUD(ctx, state, uiCtx) {
   const pct = clamp(state.displayScore / Math.max(1, state.targetScore), 0, 1);
   if (pct > 0) {
     const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-    grad.addColorStop(0, COLORS.chipsLight);
+    grad.addColorStop(0, COLORS.baseLight);
     grad.addColorStop(1, pct >= 1 ? COLORS.emerald : COLORS.brassBright);
     ctx.fillStyle = grad;
     ctx.fillRect(barX, barY, barW * pct, barH);
@@ -249,9 +249,9 @@ export function drawLeftHUD(ctx, state, uiCtx) {
   ctx.fillStyle = COLORS.textMuted;
   ctx.fillText('HANDS', gx + 51, my + 9);
   ctx.font = '900 20px ui-monospace, SFMono-Regular, Menlo, monospace';
-  ctx.fillStyle = state.handsLeft <= 1 ? COLORS.multLight : COLORS.chipsLight;
+  ctx.fillStyle = state.handsLeft <= 1 ? COLORS.multLight : COLORS.baseLight;
   ctx.fillText(String(state.handsLeft), gx + 51, my + 23);
-  drawPipDots(ctx, gx + 51, my + 52, state.handsLeft, maxHands, COLORS.chipsLight);
+  drawPipDots(ctx, gx + 51, my + 52, state.handsLeft, maxHands, COLORS.baseLight);
 
   const rx2 = gx + 110;
   const maxRerolls = getStageMaxRerolls();
@@ -293,7 +293,7 @@ export function drawLeftHUD(ctx, state, uiCtx) {
   registerButton(ctx, state, 'hud_crt', ux + uw + 8, my, uw, uh, state.crtEnabled ? 'CRT: ON' : 'CRT: OFF', {
     fill: state.crtEnabled ? '#132C28' : COLORS.railPanel,
     hoverFill: '#1D403A',
-    border: state.crtEnabled ? COLORS.chipsLight : COLORS.railBorderBright,
+    border: state.crtEnabled ? COLORS.baseLight : COLORS.railBorderBright,
     fontSize: 11, lip: 2,
     onClick: () => { sfx.click(); state.crtEnabled = !state.crtEnabled; }
   });
@@ -344,19 +344,19 @@ export function drawLeftHUD(ctx, state, uiCtx) {
   const basePillX = fx + 330;
 
   drawBevelPanel(ctx, basePillX, pillY, pillW, pillH, {
-    fill: COLORS.chipsDark,
-    border: COLORS.chipsLight,
+    fill: COLORS.baseDark,
+    border: COLORS.baseLight,
     lip: 2,
     r: 18
   });
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = '800 10px ui-monospace, SFMono-Regular, Menlo, monospace';
-  ctx.fillStyle = COLORS.chipsLight;
+  ctx.fillStyle = COLORS.baseLight;
   ctx.fillText('BASE', basePillX + 26, pillY + pillH / 2);
   ctx.font = '900 20px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillText(fmtNum(state.chips), basePillX + 74, pillY + pillH / 2 + 1);
+  ctx.fillText(fmtNum(state.basePoints), basePillX + 74, pillY + pillH / 2 + 1);
 
   ctx.font = '900 20px ui-sans-serif, system-ui, sans-serif';
   ctx.fillStyle = COLORS.brassBright;
@@ -384,7 +384,7 @@ export function drawLeftHUD(ctx, state, uiCtx) {
 
   const projTotal = state.mode === 'SCORING' && state.scoringHandTotal > 0
     ? state.scoringHandTotal
-    : Math.round(state.chips * state.mult);
+    : Math.round(state.basePoints * state.mult);
   ctx.font = '900 22px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = projTotal > 0 ? COLORS.goldLight : COLORS.textDim;
   ctx.fillText(fmtNum(projTotal), eqX + 18, pillY + pillH / 2 + 1);
@@ -414,7 +414,7 @@ export function drawModifierCardTray(ctx, state, uiCtx) {
   const usedSlots = getUsedCardSlots();
   const maxSlots = getMaxCardSlots();
   const baseSlots = getBaseCardSlots();
-  const negBonus = maxSlots - baseSlots;
+  const voidBonus = maxSlots - baseSlots;
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
@@ -424,8 +424,8 @@ export function drawModifierCardTray(ctx, state, uiCtx) {
 
   ctx.fillStyle = COLORS.textMuted;
   ctx.font = '700 11.5px ui-monospace, SFMono-Regular, Menlo, monospace';
-  const slotLabel = negBonus > 0
-    ? `·  ${state.activeCards.length} / ${maxSlots} SLOTS (+${negBonus} Negative)`
+  const slotLabel = voidBonus > 0
+    ? `·  ${state.activeCards.length} / ${maxSlots} SLOTS (+${voidBonus} Void-Etched)`
     : `·  ${usedSlots} / ${baseSlots} SLOTS`;
   ctx.fillText(slotLabel, x + 195, y + 10);
 
@@ -985,13 +985,13 @@ export function drawShopArena(ctx, state, uiCtx) {
       hovered
     });
 
-    const isNeg = card.edition === 'negative';
+    const isVoid = card.edition === 'void';
     const canAfford = state.money >= card.price;
-    const canFit = isNeg || !slotsFull;
+    const canFit = isVoid || !slotsFull;
     const buyDisabled = !canAfford || !canFit || Boolean(state.modal);
     let buyLabel = `DRAFT $${card.price}`;
     if (!canFit) buyLabel = 'DOCK FULL';
-    else if (isNeg) buyLabel = `DRAFT $${card.price} (+1)`;
+    else if (isVoid) buyLabel = `DRAFT $${card.price} (+1)`;
 
     registerButton(ctx, state, `shop_buy_${idx}`, r.x - 2, r.y + r.h + 10, r.w + 4, 34, buyLabel, {
       fill: buyDisabled ? '#1B162A' : '#0F766E',
@@ -1149,7 +1149,7 @@ export function drawCardTooltip(ctx, state, uiCtx) {
 
   ctx.textAlign = 'right';
   ctx.font = '800 14px ui-monospace, SFMono-Regular, Menlo, monospace';
-  ctx.fillStyle = getSuitColor(def.suit, card.edition === 'negative');
+  ctx.fillStyle = getSuitColor(def.suit, card.edition === 'void');
   ctx.fillText(def.rank + SUIT_SYMBOLS[def.suit], tx + tipW - 14, curY);
 
   curY += 22;
@@ -1240,7 +1240,7 @@ export function drawTitleScreen(ctx, state, uiCtx) {
   drawSuitIcon(ctx, 'spades', fanCx - 235, titleY - 56, 11, COLORS.brass);
   drawSuitIcon(ctx, 'hearts', fanCx - 207, titleY - 56, 11, COLORS.suitHearts);
   drawSuitIcon(ctx, 'diamonds', fanCx + 207, titleY - 56, 11, COLORS.suitDiamonds);
-  drawSuitIcon(ctx, 'clubs', fanCx + 235, titleY - 56, 11, COLORS.chipsLight);
+  drawSuitIcon(ctx, 'clubs', fanCx + 235, titleY - 56, 11, COLORS.baseLight);
 
   ctx.font = '800 13px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = COLORS.brassBright;
@@ -2311,8 +2311,8 @@ export function drawOverlayModal(ctx, state, uiCtx) {
 
       ctx.textAlign = 'right';
       ctx.font = '800 14px ui-monospace, SFMono-Regular, Menlo, monospace';
-      ctx.fillStyle = COLORS.chipsLight;
-      ctx.fillText(`${hd.chips}`, x + 394, hy + 17);
+      ctx.fillStyle = COLORS.baseLight;
+      ctx.fillText(`${hd.basePoints}`, x + 394, hy + 17);
       ctx.fillStyle = COLORS.textMuted;
       ctx.fillText('×', x + 412, hy + 17);
       ctx.fillStyle = COLORS.multLight;
@@ -2329,7 +2329,7 @@ export function drawOverlayModal(ctx, state, uiCtx) {
     const upgList = [
       ['Amber Stone (+1 Val)', 'Permanently increases face value by +1 (7+)', '#F5CD79'],
       ['Ruby Stone (+15M)', 'Triggers +15 Mult when face is scored', '#FB7185'],
-      ['Sapphire Stone (+50C)', 'Triggers +50 Base Points when scored', '#38BDF8'],
+      ['Sapphire Stone (+50P)', 'Triggers +50 Base Points when scored', '#38BDF8'],
       ['Topaz Stone (+$3)', 'Grants +$3 immediately when scored', '#FEF08A'],
       ['Emerald Stone (x2M)', 'x2 Mult when scored (25% shatter chance)', '#A5F3FC'],
       ['Amethyst Stone (★Any)', 'Counts as whichever value maximizes hand', '#E879F9'],

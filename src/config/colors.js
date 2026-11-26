@@ -19,12 +19,10 @@ export const COLORS = {
   ivoryShade: '#DFD5C3',
   ivoryDeep: '#B5A68E',
 
-  // Base Points (Teal / Jade) — distinct from Balatro blue chips
-  chipsBlue: '#0D9488',
-  chipsLight: '#2DD4BF',
-  chipsDark: '#115E59',
+  baseTeal: '#0D9488',
+  baseLight: '#2DD4BF',
+  baseDark: '#115E59',
 
-  // Multiplier (Warm Amber-Flame / Magenta-Coral) — distinct from Balatro red mult
   multRed: '#E11D48',
   multLight: '#FB7185',
   multDark: '#881337',
@@ -48,11 +46,11 @@ export const COLORS = {
   suitDiamonds: '#D97706',
   suitClubs: '#0D9488',
 
-  // Negative Edition
-  negBg: '#0D0B18',
-  negBorder: '#A855F7',
-  negSpades: '#38BDF8',
-  negHearts: '#F472B6',
-  negDiamonds: '#FBBF24',
-  negClubs: '#34D399'
+  // Void-Etched Edition
+  voidBg: '#0D0B18',
+  voidBorder: '#A855F7',
+  voidSpades: '#38BDF8',
+  voidHearts: '#F472B6',
+  voidDiamonds: '#FBBF24',
+  voidClubs: '#34D399'
 };

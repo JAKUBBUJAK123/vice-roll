@@ -168,7 +168,7 @@ export class SoundEngine {
     const semi = semis[Math.min(semis.length - 1, stepIdx)];
     const baseFreq = 392 * Math.pow(2, semi / 12);
 
-    if (kind === 'chips') {
+    if (kind === 'points') {
       this.tone(baseFreq, 0.13, 'triangle', 0.13, 0);
       this.tone(baseFreq * 2, 0.09, 'sine', 0.06, 0.015);
     } else if (kind === 'mult') {

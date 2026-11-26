@@ -64,7 +64,7 @@ export const CARD_CATALOG = [
     desc: '+50 Points and +$2 if the played dice sum to 7 or 14.',
     evaluate(inst, ctx) {
       if (ctx.playedSum === 7 || ctx.playedSum === 14) {
-        return [{ chipsAdd: 50, moneyAdd: 2, label: '+50 & +$2', color: COLORS.goldLight, sfx: 'money' }];
+        return [{ pointsAdd: 50, moneyAdd: 2, label: '+50 & +$2', color: COLORS.goldLight, sfx: 'money' }];
       }
       return [];
     }
@@ -119,7 +119,7 @@ export const CARD_CATALOG = [
     desc: '+100 Points if all played dice are odd.',
     evaluate(inst, ctx) {
       if (ctx.playedDice.length > 0 && ctx.playedDice.every(d => d.value % 2 === 1)) {
-        return [{ chipsAdd: 100, label: '+100 Points', color: COLORS.chipsLight, sfx: 'chips' }];
+        return [{ pointsAdd: 100, label: '+100 Points', color: COLORS.baseLight, sfx: 'points' }];
       }
       return [];
     }
@@ -175,7 +175,7 @@ export const CARD_CATALOG = [
       const events = [];
       for (const d of ctx.scoredDice) {
         if (d.value === 6) {
-          events.push({ chipsAdd: 30, multAdd: 8, label: '+30C +8M', color: COLORS.multLight, sfx: 'mult', dieId: d.id });
+          events.push({ pointsAdd: 30, multAdd: 8, label: '+30P +8M', color: COLORS.multLight, sfx: 'mult', dieId: d.id });
         }
       }
       return events;
@@ -187,7 +187,7 @@ export const CARD_CATALOG = [
     desc: '+40 POINTS if the played hand is a Doublet or better.',
     evaluate(inst, ctx) {
       if (ctx.hand.id !== 'LONE_PIP') {
-        return [{ chipsAdd: 40, label: '+40 Points', color: COLORS.chipsLight, sfx: 'chips' }];
+        return [{ pointsAdd: 40, label: '+40 Points', color: COLORS.baseLight, sfx: 'points' }];
       }
       return [];
     }
@@ -210,7 +210,7 @@ export const CARD_CATALOG = [
     evaluate(inst, ctx) {
       const bonus = ctx.money * 6;
       if (bonus > 0) {
-        return [{ chipsAdd: bonus, label: '+' + bonus + ' Points', color: COLORS.chipsLight, sfx: 'chips' }];
+        return [{ pointsAdd: bonus, label: '+' + bonus + ' Points', color: COLORS.baseLight, sfx: 'points' }];
       }
       return [];
     }

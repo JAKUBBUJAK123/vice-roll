@@ -62,7 +62,7 @@ function drawCardSpriteFrame(ctx, rank, suit, hw, hh, w, h) {
 const GEM_SPRITE_INDEX = {
   RUBY_INLAY: 0,
   SAPPHIRE_INLAY: 1,
-  GLASS_FACE: 2,
+  EMERALD_INLAY: 2,
   PIP_FORGER: 3,
   GOLD_LEAF: 4,
   WILD_FACE: 5,
@@ -427,7 +427,7 @@ export function drawGemstoneIcon(ctx, upgradeId, cx, cy, size, time = 0) {
     RUBY_INLAY: 'rgba(225, 29, 72, 0.40)',
     SAPPHIRE_INLAY: 'rgba(56, 189, 248, 0.40)',
     GOLD_LEAF: 'rgba(250, 204, 21, 0.38)',
-    GLASS_FACE: 'rgba(16, 185, 129, 0.40)',
+    EMERALD_INLAY: 'rgba(16, 185, 129, 0.40)',
     WILD_FACE: 'rgba(192, 132, 252, 0.42)',
     PINK_GEM: 'rgba(244, 114, 182, 0.42)'
   };
@@ -738,10 +738,10 @@ export function wrapLines(ctx, text, maxW) {
 export function getSuitColor(suit, isDarkCard) {
   if (isDarkCard) {
     return {
-      spades: COLORS.negSpades,
-      hearts: COLORS.negHearts,
-      diamonds: COLORS.negDiamonds,
-      clubs: COLORS.negClubs
+      spades: COLORS.voidSpades,
+      hearts: COLORS.voidHearts,
+      diamonds: COLORS.voidDiamonds,
+      clubs: COLORS.voidClubs
     }[suit];
   }
   return {
@@ -935,7 +935,7 @@ export function drawDie(ctx, state, die, isTitle = false, debuffed = false) {
       ctx.stroke();
     }
 
-    if (activeMod === 'glass' && !debuffed) {
+    if (activeMod === 'emerald' && !debuffed) {
       ctx.save();
       tracePixelRect(ctx, -half, -half, size, size, 14);
       ctx.clip();
@@ -987,7 +987,7 @@ export function drawDie(ctx, state, die, isTitle = false, debuffed = false) {
     ctx.fillText('+' + val, -half + 19, -half + 14.5);
   }
 
-  // Face mod top-right badge (Ruby, Sapphire, Gold, Glass, Wild)
+  // Face mod top-right badge (Ruby, Sapphire, Topaz, Emerald, Amethyst)
   if (!isTitle && !isTumbling && modMeta) {
     const badgeText = activeMod === 'wild' && die.selected && die.effectiveValue && die.effectiveValue !== die.value
       ? `★=${die.effectiveValue}`
@@ -1047,7 +1047,7 @@ export function drawDie(ctx, state, die, isTitle = false, debuffed = false) {
       ctx.fillText(activeMod === 'wild' && die.effectiveValue ? `▲ WILD (${die.effectiveValue})` : '▲ SELECTED', px, die.targetY + 62);
     } else if (debuffed) {
       ctx.fillStyle = COLORS.multLight;
-      ctx.fillText('0 CHIPS', px, die.targetY + 62);
+      ctx.fillText('0 POINTS', px, die.targetY + 62);
     } else if (modMeta) {
       ctx.fillStyle = modMeta.color;
       ctx.fillText(`[${die.id + 1}] ${modMeta.short}`, px, die.targetY + 62);
@@ -1070,10 +1070,10 @@ export function drawPlayingCard(ctx, state, inst, cx, cy, w, h, opts = {}) {
   } = opts;
 
   const def = CARD_BY_ID[inst.cardId];
-  const isNeg = inst.edition === 'negative';
-  const isFoil = inst.edition === 'foil';
-  const isHolo = inst.edition === 'holographic';
-  const isPoly = inst.edition === 'polychrome';
+  const isVoid = inst.edition === 'void';
+  const isGilded = inst.edition === 'gilded';
+  const isCrimson = inst.edition === 'crimson';
+  const isPrism = inst.edition === 'prism';
 
   const hw = w / 2;
   const hh = h / 2;
@@ -1086,7 +1086,7 @@ export function drawPlayingCard(ctx, state, inst, cx, cy, w, h, opts = {}) {
   ctx.scale(sc, sc);
 
   // 1. UNDER-CARD SHADOWS & EDITION AURAS
-  if (isHolo) {
+  if (isCrimson) {
     const pulse = 0.5 + 0.5 * Math.sin(state.time * 3.8 + inst.uid * 1.3);
     const emberGrad = ctx.createRadialGradient(0, hh * 0.25, 6, 0, hh * 0.2, Math.max(w, h) * 0.85);
     emberGrad.addColorStop(0, `rgba(251, 146, 60, ${0.58 + pulse * 0.22})`);
@@ -1104,7 +1104,7 @@ export function drawPlayingCard(ctx, state, inst, cx, cy, w, h, opts = {}) {
     ctx.lineWidth = 2.5;
     ctx.stroke();
     ctx.restore();
-  } else if (isPoly) {
+  } else if (isPrism) {
     const pulse = 0.5 + 0.5 * Math.sin(state.time * 3.0 + inst.uid * 0.9);
     ctx.save();
     ctx.shadowColor = '#38BDF8';
@@ -1114,7 +1114,7 @@ export function drawPlayingCard(ctx, state, inst, cx, cy, w, h, opts = {}) {
     ctx.lineWidth = 2.5;
     ctx.stroke();
     ctx.restore();
-  } else if (isNeg) {
+  } else if (isVoid) {
     const mist = 0.5 + 0.5 * Math.sin(state.time * 2.4 + inst.uid);
     ctx.save();
     ctx.shadowColor = `rgba(94, 234, 212, ${0.35 + mist * 0.2})`;
@@ -1132,7 +1132,7 @@ export function drawPlayingCard(ctx, state, inst, cx, cy, w, h, opts = {}) {
     ctx.restore();
   }
 
-  if (isFoil) {
+  if (isGilded) {
     ctx.save();
     ctx.shadowColor = 'rgba(245, 205, 121, 0.38)';
     ctx.shadowBlur = 10;
@@ -1147,20 +1147,20 @@ export function drawPlayingCard(ctx, state, inst, cx, cy, w, h, opts = {}) {
     ctx.save();
     tracePixelRect(ctx, -hw, -hh, w, h, r);
     ctx.clip();
-    if (isNeg) ctx.globalAlpha = 0.85;
+    if (isVoid) ctx.globalAlpha = 0.85;
     drawCardSpriteFrame(ctx, def.rank, def.suit, hw, hh, w, h);
     ctx.globalAlpha = 1;
 
-    if (isNeg) {
+    if (isVoid) {
       ctx.fillStyle = 'rgba(13, 38, 48, 0.42)';
       ctx.fillRect(-hw, -hh, w, h);
-    } else if (isHolo) {
+    } else if (isCrimson) {
       ctx.fillStyle = 'rgba(159, 18, 57, 0.20)';
       ctx.fillRect(-hw, -hh, w, h);
-    } else if (isPoly) {
+    } else if (isPrism) {
       ctx.fillStyle = 'rgba(56, 189, 248, 0.14)';
       ctx.fillRect(-hw, -hh, w, h);
-    } else if (isFoil) {
+    } else if (isGilded) {
       ctx.fillStyle = 'rgba(245, 205, 121, 0.12)';
       ctx.fillRect(-hw, -hh, w, h);
     }
@@ -1185,29 +1185,29 @@ export function drawPlayingCard(ctx, state, inst, cx, cy, w, h, opts = {}) {
           : `+${inst.scalingBonus} MULT`)
       : def.tag;
     const stripH = 22;
-    ctx.fillStyle = isNeg
+    ctx.fillStyle = isVoid
       ? 'rgba(15, 42, 52, 0.78)'
-      : isHolo
+      : isCrimson
         ? 'rgba(28, 6, 12, 0.88)'
-        : isPoly
+        : isPrism
           ? 'rgba(15, 23, 42, 0.88)'
           : 'rgba(16, 28, 36, 0.88)';
     ctx.fillRect(-hw + 7, hh - stripH - 7, w - 14, stripH);
     ctx.fillStyle = def.isScaling && inst.scalingBonus > 0
       ? COLORS.goldLight
-      : (isNeg ? '#99F6E4' : isHolo ? '#FED7AA' : isPoly ? '#E0F2FE' : '#F8FAFC');
+      : (isVoid ? '#99F6E4' : isCrimson ? '#FED7AA' : isPrism ? '#E0F2FE' : '#F8FAFC');
     ctx.font = `800 ${Math.max(10, Math.round(w * 0.095))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(tagText, 0, hh - stripH / 2 - 6.5);
   }
 
-  if (isFoil || isHolo || isPoly || isNeg) {
+  if (isGilded || isCrimson || isPrism || isVoid) {
     ctx.save();
     tracePixelRect(ctx, -hw, -hh, w, h, r);
     ctx.clip();
 
-    if (isFoil) {
+    if (isGilded) {
       const sweep = ((state.time * 0.48 + inst.uid * 0.37) % 2.6) - 0.8;
       const gx = -hw + sweep * w * 1.4;
       const fg = ctx.createLinearGradient(gx - 30, -hh, gx + 30, hh);
@@ -1218,11 +1218,11 @@ export function drawPlayingCard(ctx, state, inst, cx, cy, w, h, opts = {}) {
       fg.addColorStop(1, 'rgba(245, 205, 121, 0)');
       ctx.fillStyle = fg;
       ctx.fillRect(-hw, -hh, w, h);
-    } else if (isHolo) {
+    } else if (isCrimson) {
       const pulse = 0.5 + 0.5 * Math.sin(state.time * 3.8 + inst.uid * 1.3);
       ctx.fillStyle = `rgba(254, 215, 170, ${0.55 + pulse * 0.35})`;
       ctx.fillRect(-hw + 6, hh - 3.5, w - 12, 3);
-    } else if (isPoly) {
+    } else if (isPrism) {
       // Prism-Cut: Twin crisp diamond refraction laser beams + 4-point crystal star sparkles
       const sweep = ((state.time * 0.95 + inst.uid * 0.43) % 2.4) - 0.7;
       const gx = -hw + sweep * w * 1.5;
@@ -1263,7 +1263,7 @@ export function drawPlayingCard(ctx, state, inst, cx, cy, w, h, opts = {}) {
           ctx.restore();
         }
       });
-    } else if (isNeg) {
+    } else if (isVoid) {
       const wispY = Math.sin(state.time * 1.8 + inst.uid) * (hh * 0.4);
       const phantomGrad = ctx.createRadialGradient(0, wispY, 4, 0, wispY, w * 0.75);
       phantomGrad.addColorStop(0, 'rgba(94, 234, 212, 0.14)');
@@ -1287,7 +1287,7 @@ export function drawPlayingCard(ctx, state, inst, cx, cy, w, h, opts = {}) {
     ctx.fillText(edShort, hw - 25.5, -hh + 16.5);
   }
 
-  // Debuffed overlay (The Blind Eye boss)
+  // Debuffed overlay (Active boss curse)
   if (debuffed) {
     tracePixelRect(ctx, -hw, -hh, w, h, r);
     ctx.fillStyle = 'rgba(15, 8, 12, 0.56)';
@@ -1316,16 +1316,16 @@ export function drawPlayingCard(ctx, state, inst, cx, cy, w, h, opts = {}) {
   if (hovered) {
     ctx.strokeStyle = COLORS.brassBright;
     ctx.lineWidth = 2.5;
-  } else if (isNeg) {
+  } else if (isVoid) {
     ctx.strokeStyle = '#5EEAD4';
     ctx.lineWidth = 2;
-  } else if (isFoil) {
+  } else if (isGilded) {
     ctx.strokeStyle = '#D4A359';
     ctx.lineWidth = 2.2;
-  } else if (isHolo) {
+  } else if (isCrimson) {
     ctx.strokeStyle = '#FB923C';
     ctx.lineWidth = 2.2;
-  } else if (isPoly) {
+  } else if (isPrism) {
     ctx.strokeStyle = '#7DD3FC';
     ctx.lineWidth = 2.2;
   } else {

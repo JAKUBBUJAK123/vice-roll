@@ -237,13 +237,13 @@ export function updateLivePreview() {
   const selected = state.dice.filter(d => d.selected);
   if (selected.length === 0) {
     state.liveHandName = '';
-    state.chips = 0;
+    state.basePoints = 0;
     state.mult = 0;
     return;
   }
   const { hand } = resolveDiceAndEvaluateHand(selected);
   state.liveHandName = hand.name;
-  state.chips = hand.chips;
+  state.basePoints = hand.basePoints;
   state.mult = hand.mult;
 }
 
@@ -355,7 +355,7 @@ export function playSelectedHand() {
     });
 
     if (die.mod && die.mod !== 'wild' && !shatteredDieIds.has(die.id)) {
-      const shattered = die.mod === 'glass' && Math.random() < 0.25;
+      const shattered = die.mod === 'emerald' && Math.random() < 0.25;
       if (shattered) {
         shatteredDieIds.add(die.id);
         shatteredCount++;
@@ -455,33 +455,33 @@ export function playSelectedHand() {
       });
     }
 
-    if (inst.edition === 'foil') {
+    if (inst.edition === 'gilded') {
       steps.push({
         type: 'EDITION_EVENT',
         card: inst,
-        edition: 'foil',
-        chipsAdd: 50,
+        edition: 'gilded',
+        pointsAdd: 50,
         label: 'Gilded +50',
         color: '#F5CD79',
-        sfx: 'chips',
+        sfx: 'points',
         duration: 0.30
       });
-    } else if (inst.edition === 'holographic') {
+    } else if (inst.edition === 'crimson') {
       steps.push({
         type: 'EDITION_EVENT',
         card: inst,
-        edition: 'holographic',
+        edition: 'crimson',
         multAdd: 12,
         label: 'Crimson +12M',
         color: '#FB7185',
         sfx: 'mult',
         duration: 0.30
       });
-    } else if (inst.edition === 'polychrome') {
+    } else if (inst.edition === 'prism') {
       steps.push({
         type: 'EDITION_EVENT',
         card: inst,
-        edition: 'polychrome',
+        edition: 'prism',
         multMul: 1.5,
         label: 'Prism x1.5',
         color: '#E0F2FE',
@@ -641,16 +641,16 @@ export function playSelectedHand() {
   state.scoringStepCount = 0;
   state.scoringHandTotal = 0;
   state.liveHandName = hand.name;
-  state.chips = hand.chips;
+  state.basePoints = hand.basePoints;
   state.mult = hand.mult;
 }
 
 export function executeScoringStep(step) {
   if (step.type === 'BASE_HAND') {
-    state.chips = step.hand.chips;
+    state.basePoints = step.hand.basePoints;
     state.mult = step.hand.mult;
-    state.scoringBanner = step.hand.name + '  (' + step.hand.chips + ' × ' + step.hand.mult + ')';
-    sfx.scoreStep(0, 'chips');
+    state.scoringBanner = step.hand.name + '  (' + step.hand.basePoints + ' × ' + step.hand.mult + ')';
+    sfx.scoreStep(0, 'points');
     spawnPopup(640, 140, step.hand.name + '!', COLORS.brassBright, 20);
     return;
   }
@@ -677,15 +677,15 @@ export function executeScoringStep(step) {
       spawnPopup(d.x, d.y - 68, fromCrown ? '0 (Crown)' : '0 (Curse)', COLORS.multLight, 20);
       sfx.scoreStep(state.scoringStepCount, 'debuff');
     } else {
-      state.chips += val;
+      state.basePoints += val;
       d.flash = 1;
-      d.flashColor = COLORS.chipsLight;
+      d.flashColor = COLORS.baseLight;
       state.scoringStepCount++;
       const wildNote = d.mod === 'wild' ? ` (★Wild=${val})` : '';
       state.scoringBanner = `Die #${d.id + 1}${wildNote}  →  +${val} Base`;
-      spawnPopup(d.x, d.y - 68, '+' + val, COLORS.chipsLight, 24);
-      spawnParticles(d.x, d.y - 10, 8, [COLORS.chipsLight, '#FFFFFF'], 50, 140);
-      sfx.scoreStep(state.scoringStepCount, 'chips');
+      spawnPopup(d.x, d.y - 68, '+' + val, COLORS.baseLight, 24);
+      spawnParticles(d.x, d.y - 10, 8, [COLORS.baseLight, '#FFFFFF'], 50, 140);
+      sfx.scoreStep(state.scoringStepCount, 'points');
     }
     return;
   }
@@ -718,13 +718,13 @@ export function executeScoringStep(step) {
       spawnPopup(d.x, d.y - 82, `+${addM} Mult`, mm.color, 23);
       spawnParticles(d.x, d.y - 15, 14, [mm.color, '#FFFFFF'], 70, 190);
       sfx.scoreStep(state.scoringStepCount, 'mult');
-    } else if (mod === 'chips') {
+    } else if (mod === 'sapphire') {
       const addC = 50 * gemFactor;
-      state.chips += addC;
+      state.basePoints += addC;
       state.scoringBanner = `Die #${d.id + 1} Sapphire Stone  →  +${addC} Base`;
       spawnPopup(d.x, d.y - 82, `+${addC} Base`, mm.color, 23);
       spawnParticles(d.x, d.y - 15, 14, [mm.color, '#FFFFFF'], 70, 190);
-      sfx.scoreStep(state.scoringStepCount, 'chips');
+      sfx.scoreStep(state.scoringStepCount, 'points');
     } else if (mod === 'gold') {
       const addG = 3 * gemFactor;
       state.money += addG;
@@ -734,9 +734,9 @@ export function executeScoringStep(step) {
       spawnPopup(985, 65, `+$${addG}`, COLORS.goldLight, 20);
       spawnParticles(d.x, d.y - 15, 16, [mm.color, COLORS.gold, '#FFFFFF'], 70, 200);
       sfx.scoreStep(state.scoringStepCount, 'money');
-    } else if (mod === 'glass') {
-      const glassMul = Math.pow(2, 1 + (getTicketStacks('CRYSTALLOGRAPHER') > 0 ? 1 : 0) + gemCardCount);
-      state.mult = Math.round(state.mult * glassMul * 100) / 100;
+    } else if (mod === 'emerald') {
+      const emeraldMul = Math.pow(2, 1 + (getTicketStacks('CRYSTALLOGRAPHER') > 0 ? 1 : 0) + gemCardCount);
+      state.mult = Math.round(state.mult * emeraldMul * 100) / 100;
       addShake(5);
       const shattered = !!step.shattered;
       if (shattered) {
@@ -744,13 +744,13 @@ export function executeScoringStep(step) {
         if (d.faces && d.faces[d.faceIndex]) {
           d.faces[d.faceIndex].mod = null;
         }
-        state.scoringBanner = `Die #${d.id + 1} Emerald Stone  →  x${glassMul} Mult (SHATTERED!)`;
-        spawnPopup(d.x, d.y - 88, `x${glassMul} & SHATTER!`, '#FCA5A5', 24);
+        state.scoringBanner = `Die #${d.id + 1} Emerald Stone  →  x${emeraldMul} Mult (SHATTERED!)`;
+        spawnPopup(d.x, d.y - 88, `x${emeraldMul} & SHATTER!`, '#FCA5A5', 24);
         spawnParticles(d.x, d.y - 15, 28, ['#A5F3FC', '#FFFFFF', '#F87171'], 100, 280);
         sfx.error();
       } else {
-        state.scoringBanner = `Die #${d.id + 1} Emerald Stone  →  x${glassMul} Mult`;
-        spawnPopup(d.x, d.y - 82, `x${glassMul} Mult`, mm.color, 26);
+        state.scoringBanner = `Die #${d.id + 1} Emerald Stone  →  x${emeraldMul} Mult`;
+        spawnPopup(d.x, d.y - 82, `x${emeraldMul} Mult`, mm.color, 26);
         spawnParticles(d.x, d.y - 15, 18, [mm.color, '#FFFFFF'], 80, 220);
         sfx.scoreStep(state.scoringStepCount, 'xmult');
       }
@@ -789,7 +789,7 @@ export function executeScoringStep(step) {
       const targetCard = step.scaleTarget || c;
       targetCard.scalingBonus = Math.round(((targetCard.scalingBonus || 0) + ev.scaleAdd) * 100) / 100;
     }
-    if (ev.chipsAdd) state.chips += ev.chipsAdd;
+    if (ev.pointsAdd) state.basePoints += ev.pointsAdd;
     if (ev.multAdd) state.mult += ev.multAdd;
     if (ev.multMul) state.mult = Math.round(state.mult * ev.multMul * 100) / 100;
     if (ev.moneyAdd) {
@@ -811,7 +811,7 @@ export function executeScoringStep(step) {
     c.flash = 1;
     c.pulseColor = step.color;
     state.scoringStepCount++;
-    if (step.chipsAdd) state.chips += step.chipsAdd;
+    if (step.pointsAdd) state.basePoints += step.pointsAdd;
     if (step.multAdd) state.mult += step.multAdd;
     if (step.multMul) state.mult = Math.round(state.mult * step.multMul * 100) / 100;
 
@@ -894,7 +894,7 @@ export function executeScoringStep(step) {
   }
 
   if (step.type === 'TOTAL_SLAM') {
-    const handTotal = Math.round(state.chips * state.mult);
+    const handTotal = Math.round(state.basePoints * state.mult);
     state.scoringHandTotal = handTotal;
     state.stageScore += handTotal;
     if (handTotal > state.bestHandScore) state.bestHandScore = handTotal;
@@ -907,17 +907,17 @@ export function executeScoringStep(step) {
     const beatTarget = state.stageScore >= state.targetScore;
     const hugeBlowout = handTotal >= state.targetScore;
 
-    state.scoringBanner = fmtNum(state.chips) + ' × ' + fmtMult(state.mult) + ' = ' + fmtNum(handTotal) + (beatTarget ? '  —  CHAPTER CLEARED!' : '');
+    state.scoringBanner = fmtNum(state.basePoints) + ' × ' + fmtMult(state.mult) + ' = ' + fmtNum(handTotal) + (beatTarget ? '  —  CHAPTER CLEARED!' : '');
     spawnPopup(640, 310, '+' + fmtNum(handTotal), beatTarget ? COLORS.goldLight : '#FFFFFF', hugeBlowout ? 44 : 34);
 
     if (beatTarget) {
       addShake(hugeBlowout ? 18 : 11);
       state.hitFlash = hugeBlowout ? 0.55 : 0.3;
-      spawnParticles(640, 340, hugeBlowout ? 75 : 45, [COLORS.goldLight, COLORS.emerald, COLORS.chipsLight, '#FFFFFF'], 120, 420);
+      spawnParticles(640, 340, hugeBlowout ? 75 : 45, [COLORS.goldLight, COLORS.emerald, COLORS.baseLight, '#FFFFFF'], 120, 420);
       spawnParticles(480, 60, 30, [COLORS.goldLight, COLORS.emerald], 80, 260);
     } else {
       addShake(4);
-      spawnParticles(640, 340, 18, [COLORS.chipsLight, COLORS.multLight, '#FFFFFF'], 80, 200);
+      spawnParticles(640, 340, 18, [COLORS.baseLight, COLORS.multLight, '#FFFFFF'], 80, 200);
     }
     sfx.totalSlam(beatTarget);
 
