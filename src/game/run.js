@@ -94,6 +94,7 @@ export function startStage(stageNum) {
   state.workshopTarget = null;
   state.focusedActiveUid = null;
   state.comboUpgradeMult = 1;
+  state.rerollsUsedThisStage = 0;
   state.gildedTonicActive = state.pendingGildedTonic || 0;
   state.pendingGildedTonic = 0;
 
@@ -206,7 +207,29 @@ export function triggerReroll() {
     return;
   }
   state.rerollsLeft--;
-  rollDiceSet(unselected);
+  state.rerollsUsedThisStage = (state.rerollsUsedThisStage || 0) + 1;
+  let toRoll = unselected;
+  if (hasArtefact('CRACKED_CUP')) {
+    toRoll = [];
+    for (const idx of unselected) {
+      if (Math.random() < 0.25) {
+        const d = state.dice[idx];
+        if (d) {
+          d.flash = 0.8;
+          d.flashColor = '#60A5FA';
+          spawnPopup(d.x, d.y - 54, 'Jammed!', '#93C5FD', 18);
+        }
+      } else {
+        toRoll.push(idx);
+      }
+    }
+    if (toRoll.length === 0) {
+      sfx.error();
+      updateLivePreview();
+      return;
+    }
+  }
+  rollDiceSet(toRoll);
 }
 
 export function updateLivePreview() {
@@ -498,6 +521,87 @@ export function playSelectedHand() {
     }
   }
 
+  if (hasArtefact('PENNY')) {
+    for (const d of scoredDiceLog) {
+      if (d.value === 5 || d.value === 6) {
+        steps.push({
+          type: 'ARTEFACT_EVENT',
+          artefactId: 'PENNY',
+          dieId: d.id,
+          moneyAdd: 1,
+          label: 'Lucky Penny +$1',
+          color: '#FACC15',
+          sfx: 'money',
+          duration: 0.28
+        });
+      } else if (d.value >= 1 && d.value <= 3) {
+        steps.push({
+          type: 'ARTEFACT_EVENT',
+          artefactId: 'PENNY',
+          dieId: d.id,
+          moneyAdd: -1,
+          label: 'Lucky Penny -$1',
+          color: '#FB7185',
+          sfx: 'debuff',
+          duration: 0.28
+        });
+      }
+    }
+  }
+
+  if (hasArtefact('BONE') && unplayedDice.length > 0) {
+    for (const ud of unplayedDice) {
+      steps.push({
+        type: 'ARTEFACT_EVENT',
+        artefactId: 'BONE',
+        dieId: ud.id,
+        multMul: 1.5,
+        label: 'The Bone x1.5',
+        color: '#E2E8F0',
+        sfx: 'xmult',
+        duration: 0.32
+      });
+    }
+  }
+
+  if (hasArtefact('PUCH')) {
+    steps.push({
+      type: 'ARTEFACT_EVENT',
+      artefactId: 'PUCH',
+      moneyAdd: -2,
+      label: 'Loaded Pouch -$2',
+      color: '#F59E0B',
+      sfx: 'debuff',
+      duration: 0.32
+    });
+  }
+
+  if (hasArtefact('SWORD')) {
+    const isLastHand = state.handsLeft === 0;
+    steps.push({
+      type: 'ARTEFACT_EVENT',
+      artefactId: 'SWORD',
+      multAdd: isLastHand ? 160 : -20,
+      label: isLastHand ? 'Rusty Sword +160M!' : 'Rusty Sword -20M',
+      color: isLastHand ? '#F87171' : '#94A3B8',
+      sfx: isLastHand ? 'xmult' : 'debuff',
+      duration: 0.36
+    });
+  }
+
+  if (hasArtefact('CRACKED_CUP') && state.rerollsUsedThisStage > 0) {
+    const addM = state.rerollsUsedThisStage * 10;
+    steps.push({
+      type: 'ARTEFACT_EVENT',
+      artefactId: 'CRACKED_CUP',
+      multAdd: addM,
+      label: `Cracked Cup +${addM}M`,
+      color: '#60A5FA',
+      sfx: 'mult',
+      duration: 0.34
+    });
+  }
+
   if (state.selectedClothId === 'CRIMSON_VELVET' && state.activeCards.length > 0) {
     const multFactor = Math.pow(2, state.activeCards.length);
     steps.push({
@@ -722,7 +826,13 @@ export function executeScoringStep(step) {
   if (step.type === 'ARTEFACT_EVENT') {
     const def = ARTEFACT_BY_ID[step.artefactId];
     state.scoringStepCount++;
+    if (step.multAdd) state.mult = Math.max(1, Math.round((state.mult + step.multAdd) * 100) / 100);
     if (step.multMul) state.mult = Math.round(state.mult * step.multMul * 100) / 100;
+    if (step.moneyAdd) {
+      state.money = Math.max(0, state.money + step.moneyAdd);
+      if (step.moneyAdd > 0) state.totalMoneyEarned += step.moneyAdd;
+      spawnPopup(985, 65, step.moneyAdd > 0 ? `+$${step.moneyAdd}` : `-$${Math.abs(step.moneyAdd)}`, step.color, 21);
+    }
     if (step.card) {
       step.card.bounce = 1.1;
       step.card.flash = 1;
@@ -730,7 +840,7 @@ export function executeScoringStep(step) {
       spawnPopup(step.card.x, step.card.y - 54, step.label, step.color, 25);
       spawnParticles(step.card.x, step.card.y, 16, [step.color, '#FFFFFF', '#FDE047'], 70, 220);
     } else if (step.dieId !== undefined) {
-      const d = state.dice[step.dieId];
+      const d = state.dice.find(x => x.id === step.dieId) || state.dice[step.dieId];
       if (d) {
         d.hop = 0.9;
         d.flash = 1;
@@ -738,6 +848,9 @@ export function executeScoringStep(step) {
         spawnPopup(d.x, d.y - 72, step.label, step.color, 24);
         spawnParticles(d.x, d.y - 12, 14, [step.color, '#FFFFFF'], 70, 200);
       }
+    } else {
+      spawnPopup(126, 150, step.label, step.color, 24);
+      spawnParticles(126, 138, 16, [step.color, '#FFFFFF'], 70, 210);
     }
     state.scoringBanner = `${def ? def.name : 'Artefact'}  →  ${step.label}`;
     addShake(5);
@@ -873,7 +986,7 @@ export function finishScoringPhase() {
       }
     });
 
-    const artefactBonus = hasArtefact('GREED_CURSE') ? 5 : 0;
+    const artefactBonus = (hasArtefact('GREED_CURSE') ? 5 : 0) + (hasArtefact('PUCH') ? 8 : 0);
     const clothBonus = state.selectedClothId === 'WHITE_SILK' ? Math.max(2, Math.round(baseReward * 0.5)) : 0;
     const total = baseReward + handsBonus + interest + cardRerollsBonus + cardHandsBonus + artefactBonus + clothBonus;
     state.cashOutData = {

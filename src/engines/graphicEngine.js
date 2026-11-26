@@ -97,12 +97,19 @@ if (typeof Image !== 'undefined') {
   potionsSpriteImg.src = new URL('../assets/potions/potions_spritesheet.png', import.meta.url).href;
 }
 
-// Artefacts spritesheet (128x128 -> 32x32 sprites; 0=RED_CROWN, 1=GREED_CURSE, 2=SLIMEBALL, 3=ALCHEMY_BELT)
+// Artefacts spritesheet (128x128 -> 4x4 grid of 32x32 sprites; indices 0..10)
 const ARTEFACT_SPRITE_INDEX = {
   RED_CROWN: 0,
   GREED_CURSE: 1,
   SLIMEBALL: 2,
-  ALCHEMY_BELT: 3
+  ALCHEMY_BELT: 3,
+  BONE: 7,
+  PUCH: 9,
+  SWORD: 4,
+  CRACKED_CUP: 6,
+  PENNY: 8,
+  WEIGHTED_DIE: 5,
+  DIAMOND: 10
 };
 
 let artefactsSpriteImg = null;
@@ -550,14 +557,22 @@ export function drawPotionIcon(ctx, potionId, cx, cy, size = 18, time = 0) {
 
 export function drawArtefactIcon(ctx, artefactId, cx, cy, size = 18, time = 0) {
   const s = size;
-  const phase = artefactId === 'SLIMEBALL' ? 1.2 : artefactId === 'GREED_CURSE' ? 2.4 : artefactId === 'ALCHEMY_BELT' ? 3.6 : 0;
+  const frameIdx = ARTEFACT_SPRITE_INDEX[artefactId] ?? 0;
+  const phase = frameIdx * 0.85;
   const pulse = 0.5 + 0.5 * Math.sin(time * 3.2 + phase);
 
   const themes = {
     RED_CROWN:    { core: `rgba(251, 113, 133, ${0.46 + pulse * 0.2})`, shadow: '#FB7185' },
     GREED_CURSE:  { core: `rgba(251, 191, 36, ${0.46 + pulse * 0.2})`,  shadow: '#FBBF24' },
     SLIMEBALL:    { core: `rgba(74, 222, 128, ${0.46 + pulse * 0.2})`,  shadow: '#4ADE80' },
-    ALCHEMY_BELT: { core: `rgba(56, 189, 248, ${0.46 + pulse * 0.2})`,  shadow: '#38BDF8' }
+    ALCHEMY_BELT: { core: `rgba(56, 189, 248, ${0.46 + pulse * 0.2})`,  shadow: '#38BDF8' },
+    BONE:         { core: `rgba(226, 232, 240, ${0.46 + pulse * 0.2})`, shadow: '#E2E8F0' },
+    PUCH:         { core: `rgba(245, 158, 11, ${0.46 + pulse * 0.2})`,  shadow: '#F59E0B' },
+    SWORD:        { core: `rgba(248, 113, 113, ${0.46 + pulse * 0.2})`, shadow: '#F87171' },
+    CRACKED_CUP:  { core: `rgba(96, 165, 250, ${0.46 + pulse * 0.2})`,  shadow: '#60A5FA' },
+    PENNY:        { core: `rgba(250, 204, 21, ${0.46 + pulse * 0.2})`,  shadow: '#FACC15' },
+    WEIGHTED_DIE: { core: `rgba(167, 139, 250, ${0.46 + pulse * 0.2})`, shadow: '#A78BFA' },
+    DIAMOND:      { core: `rgba(45, 212, 191, ${0.46 + pulse * 0.2})`,  shadow: '#2DD4BF' }
   };
   const t = themes[artefactId] || themes.RED_CROWN;
 
@@ -573,16 +588,17 @@ export function drawArtefactIcon(ctx, artefactId, cx, cy, size = 18, time = 0) {
   ctx.arc(0, 0, auraR, 0, Math.PI * 2);
   ctx.fill();
 
-  const frameIdx = ARTEFACT_SPRITE_INDEX[artefactId] ?? 0;
   if (artefactsSpriteReady) {
     const drawSize = s * 2.1;
+    const col = frameIdx % 4;
+    const row = Math.floor(frameIdx / 4);
     ctx.save();
     ctx.shadowColor = t.shadow;
     ctx.shadowBlur = 8 + pulse * 6;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(
       artefactsSpriteImg,
-      frameIdx * 32, 0, 32, 32,
+      col * 32, row * 32, 32, 32,
       -drawSize / 2, -drawSize / 2, drawSize, drawSize
     );
     ctx.restore();

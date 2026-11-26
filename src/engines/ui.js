@@ -749,7 +749,7 @@ export function drawCashOutPanel(ctx, state, uiCtx) {
     rows.push({ label: `Card Bonus: Unused Hands (${d.handsCount})`, val: `+$${d.cardHandsBonus}`, show: state.cashOutReveal >= 0.75 });
   }
   if (d.artefactBonus > 0) {
-    rows.push({ label: `Artefact Bonus (Greed Curse)`, val: `+$${d.artefactBonus}`, show: state.cashOutReveal >= 0.75 });
+    rows.push({ label: `Artefact Income Bonus`, val: `+$${d.artefactBonus}`, show: state.cashOutReveal >= 0.75 });
   }
   if (d.clothBonus > 0) {
     rows.push({ label: `White Silk Payout Bonus`, val: `+$${d.clothBonus}`, show: state.cashOutReveal >= 0.75 });
@@ -1745,12 +1745,13 @@ export function drawCollectionScreen(ctx, state, uiCtx) {
             kind: 'GEM'
           }));
 
+    const isVeryDense = items.length > 10;
     const isDense = items.length > 8;
-    const cols = isDense ? 5 : Math.min(4, Math.max(2, items.length));
-    const cardW = isDense ? 192 : 236;
-    const cardH = isDense ? 196 : 204;
+    const cols = isVeryDense ? 4 : isDense ? 5 : Math.min(4, Math.max(2, items.length));
+    const cardW = isVeryDense ? 242 : isDense ? 192 : 236;
+    const cardH = isVeryDense ? 148 : isDense ? 196 : 204;
     const gapX = isDense ? Math.floor((contentW - 60 - cols * cardW) / (cols - 1)) : 24;
-    const gapY = 24;
+    const gapY = isVeryDense ? 14 : 24;
     const totalRowW = cols * cardW + (cols - 1) * gapX;
     const startX = contentX + (contentW - totalRowW) / 2;
     const rows = Math.ceil(items.length / cols);
@@ -1773,29 +1774,31 @@ export function drawCollectionScreen(ctx, state, uiCtx) {
         glow: hovered ? `${it.color}44` : null
       });
 
+      const iconY = isVeryDense ? iy + 36 : iy + 52;
+      const iconR = isVeryDense ? 19 : 24;
       if (it.kind === 'ARTEFACT') {
-        drawArtefactIcon(ctx, it.id, ix + cardW / 2, iy + 52, 24, state.time);
+        drawArtefactIcon(ctx, it.id, ix + cardW / 2, iconY, iconR, state.time);
       } else if (it.kind === 'POTION') {
-        drawPotionIcon(ctx, it.id, ix + cardW / 2, iy + 52, 24, state.time);
+        drawPotionIcon(ctx, it.id, ix + cardW / 2, iconY, iconR, state.time);
       } else {
-        drawGemstoneIcon(ctx, it.id, ix + cardW / 2, iy + 52, 22, state.time);
+        drawGemstoneIcon(ctx, it.id, ix + cardW / 2, iconY, 22, state.time);
       }
 
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.font = '900 16px ui-sans-serif, system-ui, sans-serif';
+      ctx.font = isVeryDense ? '900 14.5px ui-sans-serif, system-ui, sans-serif' : '900 16px ui-sans-serif, system-ui, sans-serif';
       ctx.fillStyle = COLORS.textMain;
-      ctx.fillText(it.name, ix + cardW / 2, iy + 96);
+      ctx.fillText(it.name, ix + cardW / 2, isVeryDense ? iy + 68 : iy + 96);
 
-      ctx.font = '800 10.5px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.font = '800 10px ui-monospace, SFMono-Regular, Menlo, monospace';
       ctx.fillStyle = it.color;
-      ctx.fillText(it.sub, ix + cardW / 2, iy + 118);
+      ctx.fillText(it.sub, ix + cardW / 2, isVeryDense ? iy + 86 : iy + 118);
 
-      ctx.font = '600 11.5px ui-sans-serif, system-ui, sans-serif';
+      ctx.font = isVeryDense ? '600 10.5px ui-sans-serif, system-ui, sans-serif' : '600 11.5px ui-sans-serif, system-ui, sans-serif';
       ctx.fillStyle = '#DDD6FE';
-      const lines = wrapLines(ctx, it.desc, cardW - 26);
-      lines.slice(0, 3).forEach((ln, i) => {
-        ctx.fillText(ln, ix + cardW / 2, iy + 140 + i * 15);
+      const lines = wrapLines(ctx, it.desc, cardW - 24);
+      lines.slice(0, isVeryDense ? 2 : 3).forEach((ln, i) => {
+        ctx.fillText(ln, ix + cardW / 2, (isVeryDense ? iy + 104 : iy + 140) + i * (isVeryDense ? 14 : 15));
       });
 
       if (hovered) {

@@ -187,6 +187,13 @@ export function resolveDiceAndEvaluateHand(selectedDice) {
 
 export function rollEdition() {
   const r = Math.random() * 100;
+  if (typeof state !== 'undefined' && state && hasArtefact('DIAMOND')) {
+    if (r < 42) return 'standard';
+    if (r < 64) return 'foil';
+    if (r < 83) return 'holographic';
+    if (r < 95) return 'polychrome';
+    return 'negative';
+  }
   if (r < 80) return 'standard';
   if (r < 88) return 'foil';
   if (r < 95) return 'holographic';
@@ -251,6 +258,7 @@ export const state = {
   displayScore: 0,
   handsLeft: BASE_HANDS,
   rerollsLeft: BASE_REROLLS,
+  rerollsUsedThisStage: 0,
   money: 4,
   activeBoss: null,
   usedBossIds: [],
@@ -323,7 +331,7 @@ export function getTicketStacks(id) {
   return (state.tickets && state.tickets[id]) || 0;
 }
 export function getMaxSelectDice() {
-  return MAX_SELECT_DICE + (getTicketStacks('WIDE_GRIP') > 0 ? 1 : 0);
+  return Math.max(1, MAX_SELECT_DICE + (getTicketStacks('WIDE_GRIP') > 0 ? 1 : 0) - (hasArtefact('BONE') ? 1 : 0));
 }
 export function hasArtefact(id) {
   return Array.isArray(state.artefacts) && state.artefacts.includes(id);
@@ -344,14 +352,17 @@ export function getStageMaxHands() {
   if (state.selectedClothId === 'PALLADINS_CLOTH') base += 1;
   if (state.selectedClothId === 'MYTHIC_TEAL' || state.selectedClothId === 'WHITE_SILK') base -= 1;
   if (hasArtefact('GREED_CURSE')) base -= 1;
+  if (hasArtefact('WEIGHTED_DIE')) base += 3;
   const bossDebuff = state.selectedClothId !== 'PALLADINS_CLOTH' && state.activeBoss && state.activeBoss.id === 'THREE_HANDS';
   return bossDebuff ? Math.max(1, base - 1) : Math.max(1, base);
 }
 export function getStageMaxRerolls() {
+  if (hasArtefact('WEIGHTED_DIE')) return 0;
   let base = BASE_REROLLS + getTicketStacks('LOADED_WRIST');
   if (state.selectedClothId === 'MYTHIC_TEAL' || state.selectedClothId === 'WITCH_CLOTH' || state.selectedClothId === 'WHITE_SILK') {
     base -= 1;
   }
+  if (hasArtefact('CRACKED_CUP')) base += 1;
   const diff = DIFFICULTY_BY_ID[state.selectedDifficultyId];
   if (diff && diff.rerollDelta) base += diff.rerollDelta;
   const bossDebuff = state.selectedClothId !== 'PALLADINS_CLOTH' && state.activeBoss && state.activeBoss.id === 'TWO_REROLLS';
