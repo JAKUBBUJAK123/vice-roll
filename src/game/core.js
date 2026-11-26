@@ -219,10 +219,13 @@ export function createCardInstance(cardId, forcedEdition = null) {
 
 // ---------- 3. Stan gry ----------
 export const state = {
-  mode: 'TITLE_MENU', // TITLE_MENU | CLOTH_SELECT | PLAYING | SCORING | CASH_OUT | POTION_PICK | ARTEFACT_PICK | SHOP | VICTORY | GAME_OVER
+  mode: 'TITLE_MENU', // TITLE_MENU | CLOTH_SELECT | COLLECTION | PLAYING | SCORING | CASH_OUT | POTION_PICK | ARTEFACT_PICK | SHOP | VICTORY | GAME_OVER
   modal: null,        // null | 'PAUSE' | 'GUIDE' | 'WORKSHOP' | 'CLONE_POTION'
   selectedClothId: 'BLUE',
   selectedDifficultyId: 'OPEN_TABLE',
+  collectionTab: 'CARDS',
+  collectionPage: 0,
+  hoveredCollectionItem: null,
   crtEnabled: true,
   time: 0,
   stats: loadStats(),

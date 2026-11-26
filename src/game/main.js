@@ -8,7 +8,7 @@ import { sfx } from '../engines/soundEngine.js';
 import {
   drawLeftHUD, drawModifierCardTray, drawBottomSidePanels, drawClothAndTicketTooltips, drawPlayArena, drawDieInspectorTooltip, drawCashOutPanel,
   drawShopArena, drawCardTooltip, drawPotionTray, drawPotionTooltip, drawPotionPickScreen,
-  drawArtefactTray, drawArtefactTooltip, drawArtefactPickScreen, drawTitleScreen, drawClothSelectScreen, drawEndModal, drawOverlayModal
+  drawArtefactTray, drawArtefactTooltip, drawArtefactPickScreen, drawTitleScreen, drawClothSelectScreen, drawCollectionScreen, drawCollectionTooltip, drawEndModal, drawOverlayModal
 } from '../engines/ui.js';
 import { findHoveredDieIndex, initInputListeners } from '../engines/keyinputs.js';
 
@@ -140,6 +140,7 @@ function render() {
   state.hoveredArtefact = null;
   state.hoveredCloth = null;
   state.hoveredTicket = null;
+  state.hoveredCollectionItem = null;
   state.hoveredDieIdx = (state.mode === 'PLAYING' && !state.modal)
     ? findHoveredDieIndex(state, state.mouseX, state.mouseY)
     : -1;
@@ -155,6 +156,8 @@ function render() {
     drawTitleScreen(ctx, state, uiCtx);
   } else if (state.mode === 'CLOTH_SELECT') {
     drawClothSelectScreen(ctx, state, uiCtx);
+  } else if (state.mode === 'COLLECTION') {
+    drawCollectionScreen(ctx, state, uiCtx);
   } else {
     drawLeftHUD(ctx, state, uiCtx);
     drawModifierCardTray(ctx, state, uiCtx);
@@ -175,6 +178,7 @@ function render() {
   drawPotionTooltip(ctx, state, uiCtx);
   drawArtefactTooltip(ctx, state, uiCtx);
   drawClothAndTicketTooltips(ctx, state, uiCtx);
+  drawCollectionTooltip(ctx, state, uiCtx);
   drawDieInspectorTooltip(ctx, state, uiCtx);
   drawOverlayModal(ctx, state, uiCtx);
   drawHitFlash(ctx, state, LOGICAL_W, LOGICAL_H);
@@ -186,7 +190,7 @@ function render() {
   if (state.drag && state.drag.active) cursor = 'grabbing';
   else if (state.hoverButtonId) cursor = 'pointer';
   else if (state.hoveredCard) cursor = state.hoveredCard.zone === 'active' ? 'grab' : 'pointer';
-  else if (state.hoveredPotion || state.hoveredArtefact || state.hoveredCloth || state.hoveredTicket) cursor = 'pointer';
+  else if (state.hoveredPotion || state.hoveredArtefact || state.hoveredCloth || state.hoveredTicket || state.hoveredCollectionItem) cursor = 'pointer';
   else if (state.hoveredDieIdx !== -1) cursor = 'pointer';
   canvas.style.cursor = cursor;
 }

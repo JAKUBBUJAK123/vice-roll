@@ -1,11 +1,11 @@
 import { COLORS } from '../config/colors.js';
 import { EDITIONS } from '../config/editions.js';
 import { HANDS, HAND_ORDER } from '../config/hands.js';
-import { SUIT_SYMBOLS, CARD_BY_ID } from '../config/cards.js';
-import { TICKET_COST, TICKET_BY_ID } from '../config/tickets.js';
-import { DICE_SIDES, FACE_MOD_META } from '../config/dices.js';
-import { POTION_BY_ID, MAX_POTION_SLOTS } from '../config/potions.js';
-import { ARTEFACT_BY_ID } from '../config/artefacts.js';
+import { SUIT_SYMBOLS, CARD_CATALOG, CARD_BY_ID } from '../config/cards.js';
+import { TICKET_COST, TICKET_CATALOG, TICKET_BY_ID } from '../config/tickets.js';
+import { DICE_SIDES, FACE_MOD_META, DICE_UPGRADE_CATALOG } from '../config/dices.js';
+import { POTION_CATALOG, POTION_BY_ID, MAX_POTION_SLOTS } from '../config/potions.js';
+import { ARTEFACT_CATALOG, ARTEFACT_BY_ID } from '../config/artefacts.js';
 import { CLOTH_CATALOG, CLOTH_BY_ID, DIFFICULTY_CATALOG, DIFFICULTY_BY_ID } from '../config/cloths.js';
 import {
   clamp,
@@ -1272,11 +1272,20 @@ export function drawTitleScreen(ctx, state, uiCtx) {
     onClick: openClothSelect || startNewRun
   });
 
-  registerButton(ctx, state, 'title_guide', fanCx - 175, 650, 165, 42, 'HANDS & RULES', {
+  registerButton(ctx, state, 'title_collection', fanCx - 264, 650, 165, 42, 'COLLECTION', {
+    fill: '#1E1638', hoverFill: '#2D2254', border: COLORS.brassBright, fontSize: 13,
+    onClick: () => {
+      sfx.click();
+      state.collectionTab = 'CARDS';
+      state.collectionPage = 0;
+      state.mode = 'COLLECTION';
+    }
+  });
+  registerButton(ctx, state, 'title_guide', fanCx - 82, 650, 165, 42, 'HANDS & RULES', {
     fill: COLORS.railPanel, hoverFill: '#2D224A', fontSize: 13,
     onClick: () => { sfx.click(); state.modal = 'GUIDE'; }
   });
-  registerButton(ctx, state, 'title_crt', fanCx + 10, 650, 165, 42, state.crtEnabled ? 'CRT GLOW: ON' : 'CRT GLOW: OFF', {
+  registerButton(ctx, state, 'title_crt', fanCx + 100, 650, 165, 42, state.crtEnabled ? 'CRT GLOW: ON' : 'CRT GLOW: OFF', {
     fill: COLORS.railPanel, hoverFill: '#2D224A', fontSize: 13,
     onClick: () => { sfx.click(); state.crtEnabled = !state.crtEnabled; }
   });
@@ -1484,6 +1493,363 @@ export function drawClothSelectScreen(ctx, state, uiCtx) {
     lip: 2,
     onClick: () => { sfx.click(); state.mode = 'TITLE_MENU'; }
   });
+}
+
+export function drawCollectionScreen(ctx, state, uiCtx) {
+  const { LOGICAL_W, LOGICAL_H } = uiCtx;
+  const activeTab = state.collectionTab || 'CARDS';
+
+  ctx.fillStyle = 'rgba(7, 3, 16, 0.76)';
+  ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+
+  const pw = 1180, ph = 680;
+  const px = (LOGICAL_W - pw) / 2;
+  const py = (LOGICAL_H - ph) / 2;
+
+  drawBevelPanel(ctx, px, py, pw, ph, {
+    fill: 'rgba(18, 12, 32, 0.95)',
+    border: COLORS.brassBright,
+    lip: 6,
+    r: 16,
+    glow: 'rgba(245, 205, 121, 0.16)'
+  });
+
+  // Header & Back Button
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.font = '900 28px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = COLORS.goldLight;
+  ctx.fillText('PARLOR COLLECTION', px + 32, py + 22);
+
+  registerButton(ctx, state, 'collection_back', px + pw - 204, py + 22, 172, 40, '← BACK TO TITLE', {
+    fill: COLORS.railPanel,
+    hoverFill: '#2D224A',
+    border: COLORS.brass,
+    fontSize: 12.5,
+    lip: 3,
+    onClick: () => { sfx.click(); state.mode = 'TITLE_MENU'; }
+  });
+
+  // Category Tabs
+  const tabs = [
+    { id: 'CARDS',     label: `CARDS (${CARD_CATALOG.length})`,         color: '#F5CD79' },
+    { id: 'TICKETS',   label: `TICKETS (${TICKET_CATALOG.length})`,     color: '#38BDF8' },
+    { id: 'ARTEFACTS', label: `ARTEFACTS (${ARTEFACT_CATALOG.length})`, color: '#FB7185' },
+    { id: 'POTIONS',   label: `POTIONS (${POTION_CATALOG.length})`,     color: '#34D399' },
+    { id: 'GEMS',      label: `GEMS (${DICE_UPGRADE_CATALOG.length})`,  color: '#E879F9' }
+  ];
+
+  const tabW = 212, tabH = 38, tabGap = 14;
+  const tabStartX = px + (pw - (tabs.length * tabW + (tabs.length - 1) * tabGap)) / 2;
+  const tabY = py + 86;
+
+  tabs.forEach((t, i) => {
+    const tx = tabStartX + i * (tabW + tabGap);
+    const isSel = activeTab === t.id;
+    registerButton(ctx, state, `col_tab_${t.id}`, tx, tabY, tabW, tabH, t.label, {
+      fill: isSel ? '#2A1D4E' : '#120C22',
+      hoverFill: '#241842',
+      border: isSel ? t.color : COLORS.railBorderBright,
+      textColor: isSel ? COLORS.goldLight : COLORS.textMain,
+      fontSize: 13,
+      lip: isSel ? 3 : 2,
+      glow: isSel ? `${t.color}44` : null,
+      onClick: () => {
+        sfx.cardSnap();
+        state.collectionTab = t.id;
+        state.collectionPage = 0;
+      }
+    });
+  });
+
+  const contentX = px + 32;
+  const contentY = py + 140;
+  const contentW = pw - 64;
+  const contentH = ph - 166;
+
+  drawBevelPanel(ctx, contentX, contentY, contentW, contentH, {
+    fill: 'rgba(10, 6, 20, 0.65)',
+    border: COLORS.railBorder,
+    lip: 3,
+    r: 12
+  });
+
+  // 1. CARDS TAB (Paginated 16 per page -> 8 cols x 2 rows)
+  if (activeTab === 'CARDS') {
+    const perPage = 16;
+    const totalPages = Math.max(1, Math.ceil(CARD_CATALOG.length / perPage));
+    const page = clamp(state.collectionPage || 0, 0, totalPages - 1);
+    const pageItems = CARD_CATALOG.slice(page * perPage, (page + 1) * perPage);
+
+    const cols = 8;
+    const cardW = 110, cardH = 150;
+    const gapX = Math.floor((contentW - 48 - cols * cardW) / (cols - 1));
+    const gapY = 26;
+    const startX = contentX + 24;
+    const startY = contentY + 26;
+
+    const rarityColors = {
+      common: '#94A3B8',
+      uncommon: '#34D399',
+      rare: '#38BDF8',
+      epic: '#E879F9'
+    };
+
+    pageItems.forEach((def, idx) => {
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+      const x = startX + col * (cardW + gapX);
+      const y = startY + row * (cardH + gapY);
+      const rect = { x, y, w: cardW, h: cardH };
+      const hovered = hitTest(state.mouseX, state.mouseY, rect);
+
+      const dummyInst = {
+        uid: idx + 1,
+        cardId: def.id,
+        edition: 'standard',
+        scalingBonus: 0,
+        bounce: 0,
+        flash: 0
+      };
+      drawPlayingCard(ctx, state, dummyInst, x + cardW / 2, y + cardH / 2, cardW, cardH, {
+        hovered
+      });
+
+      if (hovered) {
+        state.hoveredCollectionItem = {
+          title: `${def.name} (${def.rank}${SUIT_SYMBOLS[def.suit]})`,
+          badge: `${def.rarity.toUpperCase()} · $${def.basePrice}`,
+          color: rarityColors[def.rarity] || COLORS.brassBright,
+          desc: def.desc,
+          rect
+        };
+      }
+    });
+
+    // Pagination footer
+    const footY = contentY + contentH - 46;
+    registerButton(ctx, state, 'col_prev_page', contentX + contentW / 2 - 190, footY, 110, 32, '◀ PREV', {
+      fill: COLORS.railPanel,
+      hoverFill: '#2D224A',
+      fontSize: 12,
+      lip: 2,
+      disabled: page <= 0,
+      onClick: () => { sfx.click(); state.collectionPage = Math.max(0, page - 1); }
+    });
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '800 13px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = COLORS.brassBright;
+    ctx.fillText(`PAGE ${page + 1} / ${totalPages}`, contentX + contentW / 2, footY + 16);
+
+    registerButton(ctx, state, 'col_next_page', contentX + contentW / 2 + 80, footY, 110, 32, 'NEXT ▶', {
+      fill: COLORS.railPanel,
+      hoverFill: '#2D224A',
+      fontSize: 12,
+      lip: 2,
+      disabled: page >= totalPages - 1,
+      onClick: () => { sfx.click(); state.collectionPage = Math.min(totalPages - 1, page + 1); }
+    });
+  }
+
+  else if (activeTab === 'TICKETS') {
+    const cols = 5;
+    const cardW = 192, cardH = 196;
+    const gapX = Math.floor((contentW - 60 - cols * cardW) / (cols - 1));
+    const gapY = 26;
+    const startX = contentX + 30;
+    const startY = contentY + 34;
+
+    TICKET_CATALOG.forEach((ticket, idx) => {
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+      const tx = startX + col * (cardW + gapX);
+      const ty = startY + row * (cardH + gapY);
+      const rect = { x: tx, y: ty, w: cardW, h: cardH };
+      const hovered = hitTest(state.mouseX, state.mouseY, rect);
+
+      ctx.save();
+      traceTicketRect(ctx, tx, ty, cardW, cardH, 9, 8);
+      ctx.fillStyle = hovered ? '#281A4A' : '#1B1136';
+      ctx.fill();
+      ctx.strokeStyle = hovered ? COLORS.goldLight : ticket.color;
+      ctx.lineWidth = hovered ? 2.5 : 1.8;
+      ctx.stroke();
+
+      const perfY = ty + cardH * 0.44;
+      ctx.strokeStyle = 'rgba(245, 205, 121, 0.35)';
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(tx + 12, perfY);
+      ctx.lineTo(tx + cardW - 12, perfY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+
+      drawTicketIcon(ctx, ticket, tx + cardW / 2, (ty + perfY) / 2, 20, state.time);
+
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.font = '900 15px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = COLORS.textMain;
+      ctx.fillText(ticket.name, tx + cardW / 2, perfY + 12);
+
+      ctx.font = '600 11.5px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = '#DDD6FE';
+      const lines = wrapLines(ctx, ticket.desc, cardW - 24);
+      lines.slice(0, 3).forEach((ln, i) => {
+        ctx.fillText(ln, tx + cardW / 2, perfY + 36 + i * 15);
+      });
+
+      if (hovered) {
+        state.hoveredCollectionItem = {
+          title: ticket.name,
+          badge: `TICKET · $${TICKET_COST} · MAX ${ticket.maxStacks}`,
+          color: ticket.color,
+          desc: ticket.desc,
+          rect
+        };
+      }
+    });
+  }
+
+  else {
+    const items = activeTab === 'ARTEFACTS'
+      ? ARTEFACT_CATALOG.map(a => ({
+          id: a.id,
+          name: a.name,
+          sub: a.short,
+          badge: 'BOSS ARTEFACT',
+          color: a.color,
+          desc: a.desc,
+          kind: 'ARTEFACT'
+        }))
+      : activeTab === 'POTIONS'
+        ? POTION_CATALOG.map(p => ({
+            id: p.id,
+            name: p.name,
+            sub: p.short,
+            badge: `POTION · SELL +$${p.sellPrice}`,
+            color: p.color,
+            desc: p.desc,
+            kind: 'POTION'
+          }))
+        : DICE_UPGRADE_CATALOG.map(g => ({
+            id: g.id,
+            name: g.name,
+            sub: g.tag,
+            badge: `WORKSHOP GEM · $${g.price}`,
+            color: g.color,
+            desc: g.desc,
+            kind: 'GEM'
+          }));
+
+    const cols = Math.min(4, Math.max(2, items.length));
+    const cardW = 236, cardH = 204, gapX = 24, gapY = 24;
+    const totalRowW = cols * cardW + (cols - 1) * gapX;
+    const startX = contentX + (contentW - totalRowW) / 2;
+    const rows = Math.ceil(items.length / cols);
+    const totalColH = rows * cardH + (rows - 1) * gapY;
+    const startY = contentY + (contentH - totalColH) / 2;
+
+    items.forEach((it, idx) => {
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+      const ix = startX + col * (cardW + gapX);
+      const iy = startY + row * (cardH + gapY);
+      const rect = { x: ix, y: iy, w: cardW, h: cardH };
+      const hovered = hitTest(state.mouseX, state.mouseY, rect);
+
+      drawBevelPanel(ctx, ix, iy, cardW, cardH, {
+        fill: hovered ? '#241842' : '#140E26',
+        border: hovered ? COLORS.goldLight : it.color,
+        lip: 4,
+        r: 12,
+        glow: hovered ? `${it.color}44` : null
+      });
+
+      if (it.kind === 'ARTEFACT') {
+        drawArtefactIcon(ctx, it.id, ix + cardW / 2, iy + 52, 24, state.time);
+      } else if (it.kind === 'POTION') {
+        drawPotionIcon(ctx, it.id, ix + cardW / 2, iy + 52, 24, state.time);
+      } else {
+        drawGemstoneIcon(ctx, it.id, ix + cardW / 2, iy + 52, 22, state.time);
+      }
+
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.font = '900 16px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = COLORS.textMain;
+      ctx.fillText(it.name, ix + cardW / 2, iy + 96);
+
+      ctx.font = '800 10.5px ui-monospace, SFMono-Regular, Menlo, monospace';
+      ctx.fillStyle = it.color;
+      ctx.fillText(it.sub, ix + cardW / 2, iy + 118);
+
+      ctx.font = '600 11.5px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = '#DDD6FE';
+      const lines = wrapLines(ctx, it.desc, cardW - 26);
+      lines.slice(0, 3).forEach((ln, i) => {
+        ctx.fillText(ln, ix + cardW / 2, iy + 140 + i * 15);
+      });
+
+      if (hovered) {
+        state.hoveredCollectionItem = {
+          title: it.name,
+          badge: it.badge,
+          color: it.color,
+          desc: it.desc,
+          rect
+        };
+      }
+    });
+  }
+}
+
+export function drawCollectionTooltip(ctx, state, uiCtx) {
+  const item = state.hoveredCollectionItem;
+  if (!item || state.mode !== 'COLLECTION' || state.modal) return;
+  const { LOGICAL_W, LOGICAL_H } = uiCtx;
+
+  const tipW = 300;
+  ctx.font = '600 13px ui-sans-serif, system-ui, sans-serif';
+  const descLines = wrapLines(ctx, item.desc, tipW - 28);
+  const tipH = 68 + descLines.length * 18;
+
+  const tx = clamp(item.rect.x + item.rect.w / 2 - tipW / 2, 18, LOGICAL_W - tipW - 18);
+  let ty = item.rect.y - tipH - 12;
+  if (ty < 16) ty = item.rect.y + item.rect.h + 12;
+  ty = clamp(ty, 14, LOGICAL_H - tipH - 14);
+
+  drawBevelPanel(ctx, tx, ty, tipW, tipH, {
+    fill: 'rgba(12, 8, 24, 0.98)',
+    border: item.color,
+    lip: 4,
+    r: 10,
+    glow: 'rgba(0,0,0,0.75)'
+  });
+
+  let curY = ty + 13;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.font = '800 14.5px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = COLORS.textMain;
+  ctx.fillText(item.title, tx + 14, curY);
+
+  ctx.textAlign = 'right';
+  ctx.font = '800 10.5px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = item.color;
+  ctx.fillText(item.badge, tx + tipW - 14, curY + 2);
+
+  curY += 24;
+  ctx.textAlign = 'left';
+  ctx.font = '600 13px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = '#EDE9FE';
+  for (const line of descLines) {
+    ctx.fillText(line, tx + 14, curY);
+    curY += 18;
+  }
 }
 
 export function drawBottomSidePanels(ctx, state) {
@@ -1959,7 +2325,8 @@ export function drawOverlayModal(ctx, state, uiCtx) {
       ['Sapphire Stone (+50C)', 'Triggers +50 Base Points when scored', '#38BDF8'],
       ['Topaz Stone (+$3)', 'Grants +$3 immediately when scored', '#FEF08A'],
       ['Emerald Stone (x2M)', 'x2 Mult when scored (25% shatter chance)', '#A5F3FC'],
-      ['Amethyst Stone (★Any)', 'Counts as whichever value maximizes hand', '#E879F9']
+      ['Amethyst Stone (★Any)', 'Counts as whichever value maximizes hand', '#E879F9'],
+      ['Pink Gem (-1 Val)', 'Permanently decreases face value by -1', '#e444ac'],
     ];
     let ey = y + 88;
     for (const [name, txt, col] of upgList) {

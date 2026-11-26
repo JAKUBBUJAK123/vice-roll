@@ -168,7 +168,7 @@ export function initInputListeners(canvas, state, actions) {
         sfx.click();
         state.modal = null;
         state.workshopTarget = null;
-      } else if (state.mode === 'CLOTH_SELECT') {
+      } else if (state.mode === 'CLOTH_SELECT' || state.mode === 'COLLECTION') {
         sfx.click();
         state.mode = 'TITLE_MENU';
       } else if (state.mode === 'PLAYING' || state.mode === 'SHOP') {
