@@ -141,9 +141,16 @@ export function resolveDiceAndEvaluateHand(selectedDice) {
     return d.value;
   });
 
+  const scaleHand = (h) => {
+    const cMult = (typeof state !== 'undefined' && state && state.comboUpgradeMult) ? state.comboUpgradeMult : 1;
+    return (h && cMult > 1)
+      ? { ...h, chips: Math.round(h.chips * cMult), mult: Math.round(h.mult * cMult) }
+      : h;
+  };
+
   if (wildIndices.length === 0) {
     for (const d of selectedDice) d.effectiveValue = d.value;
-    return { hand: evaluateConcreteValues(baseValues), resolvedValues: baseValues };
+    return { hand: scaleHand(evaluateConcreteValues(baseValues)), resolvedValues: baseValues };
   }
 
   const maxTableVal = Math.max(6, ...baseValues);
@@ -175,7 +182,7 @@ export function resolveDiceAndEvaluateHand(selectedDice) {
 
   search(0, [...baseValues]);
   selectedDice.forEach((d, idx) => { d.effectiveValue = bestResolved[idx]; });
-  return { hand: bestHand, resolvedValues: bestResolved };
+  return { hand: scaleHand(bestHand), resolvedValues: bestResolved };
 }
 
 export function rollEdition() {
@@ -279,6 +286,9 @@ export const state = {
   focusedPotionIdx: null,
   hoveredPotion: null,
   potionScoreMult: 1,
+  echoPotionActive: 0,
+  gildedTonicActive: 0,
+  comboUpgradeMult: 1,
   artefacts: [],
   artefactChoices: [],
   hoveredArtefact: null,

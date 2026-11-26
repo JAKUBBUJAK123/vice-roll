@@ -44,6 +44,10 @@ export function startNewRun(clothId = null, difficultyId = null) {
   state.focusedPotionIdx = null;
   state.hoveredPotion = null;
   state.potionScoreMult = 1;
+  state.echoPotionActive = 0;
+  state.gildedTonicActive = 0;
+  state.pendingGildedTonic = 0;
+  state.comboUpgradeMult = 1;
   state.artefacts = [];
   state.artefactChoices = [];
   state.hoveredArtefact = null;
@@ -89,6 +93,9 @@ export function startStage(stageNum) {
   state.modal = null;
   state.workshopTarget = null;
   state.focusedActiveUid = null;
+  state.comboUpgradeMult = 1;
+  state.gildedTonicActive = state.pendingGildedTonic || 0;
+  state.pendingGildedTonic = 0;
 
   // Assign Boss every 3rd stage
   if (stageNum % 3 === 0) {
@@ -309,7 +316,7 @@ export function playSelectedHand() {
   const shatteredDieIds = new Set();
   let shatteredCount = 0;
 
-  function enqueueDieScoring(proxy, retriggerCard = null) {
+  function enqueueDieScoring(proxy, retriggerCard = null, echoRetrigger = false) {
     const die = proxy.dieRef;
     const scoredValue = proxy.value;
     const debuffed = isDieDebuffedByBoss(scoredValue);
@@ -320,6 +327,7 @@ export function playSelectedHand() {
       scoredValue,
       debuffed,
       retriggerCard,
+      echoRetrigger,
       duration: 0.28
     });
 
@@ -369,7 +377,14 @@ export function playSelectedHand() {
         enqueueDieScoring(proxy, rc);
       }
     }
+    if (state.echoPotionActive > 0) {
+      for (let e = 0; e < state.echoPotionActive; e++) {
+        scoredDiceLog.push(proxy);
+        enqueueDieScoring(proxy, null, true);
+      }
+    }
   });
+  state.echoPotionActive = 0;
 
   const evalCtx = {
     hand,
@@ -496,6 +511,14 @@ export function playSelectedHand() {
     });
   }
 
+  if (state.gildedTonicActive > 0) {
+    steps.push({
+      type: 'POTION_GOLD',
+      moneyAdd: 5 * state.gildedTonicActive,
+      duration: 0.36
+    });
+  }
+
   if (state.potionScoreMult > 1) {
     steps.push({
       type: 'POTION_MULT',
@@ -537,6 +560,9 @@ export function executeScoringStep(step) {
       step.retriggerCard.flash = 1;
       step.retriggerCard.pulseColor = COLORS.goldLight;
       spawnPopup(step.retriggerCard.x, step.retriggerCard.y - 36, 'Retrigger!', COLORS.goldLight, 18);
+      sfx.scoreStep(state.scoringStepCount, 'retrigger');
+    } else if (step.echoRetrigger) {
+      spawnPopup(d.x, d.y - 94, 'Echo Retrigger!', '#2DD4BF', 18);
       sfx.scoreStep(state.scoringStepCount, 'retrigger');
     }
     if (step.debuffed) {
@@ -728,6 +754,17 @@ export function executeScoringStep(step) {
     spawnParticles(640, 560, 20, [step.color, '#FFFFFF', '#FDE047'], 80, 230);
     addShake(6);
     sfx.scoreStep(state.scoringStepCount, step.sfx || 'xmult');
+    return;
+  }
+
+  if (step.type === 'POTION_GOLD') {
+    state.scoringStepCount++;
+    state.money += step.moneyAdd;
+    state.totalMoneyEarned += step.moneyAdd;
+    state.scoringBanner = `Gilded Tonic  →  +$${step.moneyAdd}`;
+    spawnPopup(985, 65, `+$${step.moneyAdd}`, COLORS.goldLight, 24);
+    spawnParticles(985, 58, 18, [COLORS.goldLight, COLORS.gold, '#FFFFFF'], 70, 210);
+    sfx.scoreStep(state.scoringStepCount, 'money');
     return;
   }
 

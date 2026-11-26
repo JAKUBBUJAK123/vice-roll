@@ -78,7 +78,15 @@ if (typeof Image !== 'undefined') {
 }
 const POTION_SPRITE_INDEX = {
   STRENGTH: 0,
-  CLEANSE: 1
+  CLEANSE: 1,
+  SHINE: 2,
+  ECHO: 3,
+  Gilded_Tonic: 4,
+  WIND: 5,
+  INFERNO: 6,
+  GHOST: 7,
+  PANORAMIX: 8,
+  PSYHO: 9
 };
 
 let potionsSpriteImg = null;
@@ -459,23 +467,22 @@ export function drawGemstoneIcon(ctx, upgradeId, cx, cy, size, time = 0) {
 
 export function drawPotionIcon(ctx, potionId, cx, cy, size = 18, time = 0) {
   const s = size;
-  const phase = potionId === 'CLEANSE' ? 2.1 : 0;
+  const frameIdx = POTION_SPRITE_INDEX[potionId] ?? 0;
+  const phase = frameIdx * 0.9;
   const pulse = 0.5 + 0.5 * Math.sin(time * 3.8 + phase);
   const floatY = Math.sin(time * 2.6 + phase) * (s * 0.06);
 
   const themes = {
-    STRENGTH: {
-      core: `rgba(251, 113, 133, ${0.58 + pulse * 0.25})`,
-      mid: `rgba(225, 29, 72, ${0.28 + pulse * 0.14})`,
-      shadow: '#FB7185',
-      spark: '#FFE4E6'
-    },
-    CLEANSE: {
-      core: `rgba(52, 211, 153, ${0.58 + pulse * 0.25})`,
-      mid: `rgba(16, 185, 129, ${0.28 + pulse * 0.14})`,
-      shadow: '#34D399',
-      spark: '#D1FAE5'
-    }
+    STRENGTH:     { core: `rgba(251, 113, 133, ${0.58 + pulse * 0.25})`, mid: `rgba(225, 29, 72, ${0.28 + pulse * 0.14})`,   shadow: '#FB7185', spark: '#FFE4E6' },
+    CLEANSE:      { core: `rgba(52, 211, 153, ${0.58 + pulse * 0.25})`,  mid: `rgba(16, 185, 129, ${0.28 + pulse * 0.14})`,  shadow: '#34D399', spark: '#D1FAE5' },
+    SHINE:        { core: `rgba(125, 211, 252, ${0.58 + pulse * 0.25})`, mid: `rgba(2, 132, 199, ${0.28 + pulse * 0.14})`,   shadow: '#7DD3FC', spark: '#E0F2FE' },
+    ECHO:         { core: `rgba(45, 212, 191, ${0.58 + pulse * 0.25})`,  mid: `rgba(13, 148, 136, ${0.28 + pulse * 0.14})`,  shadow: '#2DD4BF', spark: '#99F6E4' },
+    Gilded_Tonic: { core: `rgba(250, 204, 21, ${0.58 + pulse * 0.25})`,  mid: `rgba(202, 138, 4, ${0.28 + pulse * 0.14})`,   shadow: '#FACC15', spark: '#FEF08A' },
+    WIND:         { core: `rgba(110, 231, 183, ${0.58 + pulse * 0.25})`, mid: `rgba(16, 185, 129, ${0.28 + pulse * 0.14})`,  shadow: '#6EE7B7', spark: '#D1FAE5' },
+    INFERNO:      { core: `rgba(251, 146, 60, ${0.58 + pulse * 0.25})`,  mid: `rgba(234, 88, 12, ${0.28 + pulse * 0.14})`,   shadow: '#FB923C', spark: '#FED7AA' },
+    GHOST:        { core: `rgba(167, 139, 250, ${0.58 + pulse * 0.25})`, mid: `rgba(109, 40, 217, ${0.28 + pulse * 0.14})`,  shadow: '#A78BFA', spark: '#DDD6FE' },
+    PANORAMIX:    { core: `rgba(245, 158, 11, ${0.58 + pulse * 0.25})`,  mid: `rgba(180, 83, 9, ${0.28 + pulse * 0.14})`,    shadow: '#F59E0B', spark: '#FDE68A' },
+    PSYHO:        { core: `rgba(232, 121, 249, ${0.58 + pulse * 0.25})`, mid: `rgba(192, 38, 211, ${0.28 + pulse * 0.14})`,  shadow: '#E879F9', spark: '#F5D0FE' }
   };
   const t = themes[potionId] || themes.STRENGTH;
 
@@ -493,8 +500,9 @@ export function drawPotionIcon(ctx, potionId, cx, cy, size = 18, time = 0) {
   ctx.arc(0, s * 0.08, auraR, 0, Math.PI * 2);
   ctx.fill();
 
-  const frameIdx = POTION_SPRITE_INDEX[potionId] ?? 0;
   if (potionsSpriteReady) {
+    const col = frameIdx % 5;
+    const row = Math.floor(frameIdx / 5);
     const drawSize = s * 2.1;
     ctx.save();
     ctx.shadowColor = t.shadow;
@@ -502,7 +510,7 @@ export function drawPotionIcon(ctx, potionId, cx, cy, size = 18, time = 0) {
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(
       potionsSpriteImg,
-      frameIdx * 32, 0, 32, 32,
+      col * 32, row * 32, 32, 32,
       -drawSize / 2, -drawSize / 2, drawSize, drawSize
     );
     ctx.restore();

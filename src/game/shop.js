@@ -12,7 +12,7 @@ import {
   getShopCardSlotCount, getShopRerollCost,
   showNotice, spawnPopup, spawnParticles
 } from './core.js';
-import { updateLivePreview } from './run.js';
+import { updateLivePreview, finishScoringPhase } from './run.js';
 
 // ---------- Cash-out ----------
 export function claimCashOut() {
@@ -171,6 +171,130 @@ export function usePotion(slotIdx) {
     spawnPopup(220, 62, 'CURSE CLEANSED!', '#34D399', 22);
     spawnParticles(220, 56, 22, ['#34D399', '#A7F3D0', '#FFFFFF'], 80, 220);
     showNotice(`Cleanse Potion removed ${oldName}!`, 2.2);
+    updateLivePreview();
+  } else if (pot.id === 'SHINE') {
+    if (state.mode !== 'PLAYING') {
+      sfx.error();
+      showNotice('Use Shine Potion during a stage!', 1.6);
+      return;
+    }
+    state.potions.splice(slotIdx, 1);
+    state.focusedPotionIdx = null;
+    state.handsLeft += 2;
+    sfx.buyCard();
+    spawnPopup(743, 52, '+2 HANDS!', '#7DD3FC', 22);
+    spawnParticles(743, 48, 18, ['#7DD3FC', '#E0F2FE', '#FFFFFF'], 70, 210);
+    showNotice('Shine Potion granted +2 Hands!', 2.0);
+  } else if (pot.id === 'WIND') {
+    if (state.mode !== 'PLAYING') {
+      sfx.error();
+      showNotice('Use Second Wind during a stage!', 1.6);
+      return;
+    }
+    state.potions.splice(slotIdx, 1);
+    state.focusedPotionIdx = null;
+    state.rerollsLeft += 2;
+    sfx.buyCard();
+    spawnPopup(853, 52, '+2 REROLLS!', '#6EE7B7', 22);
+    spawnParticles(853, 48, 18, ['#6EE7B7', '#D1FAE5', '#FFFFFF'], 70, 210);
+    showNotice('Second Wind granted +2 Rerolls!', 2.0);
+  } else if (pot.id === 'ECHO') {
+    state.potions.splice(slotIdx, 1);
+    state.focusedPotionIdx = null;
+    state.echoPotionActive = (state.echoPotionActive || 0) + 1;
+    sfx.buyCard();
+    spawnPopup(1154, 148, 'ECHO ARMED!', '#2DD4BF', 22);
+    spawnParticles(1154, 138, 18, ['#2DD4BF', '#99F6E4', '#FFFFFF'], 70, 210);
+    showNotice('Echo Tonic active: next played hand retriggers all dice!', 2.2);
+  } else if (pot.id === 'Gilded_Tonic') {
+    state.potions.splice(slotIdx, 1);
+    state.focusedPotionIdx = null;
+    if (state.mode === 'PLAYING') {
+      state.gildedTonicActive = (state.gildedTonicActive || 0) + 1;
+    } else {
+      state.pendingGildedTonic = (state.pendingGildedTonic || 0) + 1;
+    }
+    sfx.buyCard();
+    spawnPopup(1154, 148, '+$5 / HAND!', '#FACC15', 22);
+    spawnParticles(1154, 138, 18, ['#FACC15', '#FEF08A', '#FFFFFF'], 70, 210);
+    showNotice('Gilded Tonic active: +$5 for each played hand!', 2.2);
+  } else if (pot.id === 'INFERNO') {
+    if (state.mode !== 'PLAYING') {
+      sfx.error();
+      showNotice('Use Inferno Potion during a round!', 1.6);
+      return;
+    }
+    state.potions.splice(slotIdx, 1);
+    state.focusedPotionIdx = null;
+    state.comboUpgradeMult = (state.comboUpgradeMult || 1) * 2;
+    sfx.buyCard();
+    spawnPopup(640, 140, '2x COMBO VALUES!', '#FB923C', 26);
+    spawnParticles(640, 140, 24, ['#FB923C', '#FED7AA', '#FFFFFF'], 80, 230);
+    showNotice(`Inferno Potion: hand combo Chips & Mult are ${state.comboUpgradeMult}x for this round!`, 2.4);
+    updateLivePreview();
+  } else if (pot.id === 'GHOST') {
+    if (state.mode !== 'PLAYING') {
+      sfx.error();
+      showNotice('Use Ghost Brew during a stage!', 1.6);
+      return;
+    }
+    state.potions.splice(slotIdx, 1);
+    state.focusedPotionIdx = null;
+    state.targetScore = Math.max(10, Math.round(state.targetScore * 0.8));
+    sfx.buyCard();
+    spawnPopup(480, 52, '-20% GOAL!', '#A78BFA', 24);
+    spawnParticles(480, 48, 20, ['#A78BFA', '#DDD6FE', '#FFFFFF'], 70, 220);
+    showNotice(`Ghost Brew reduced target score to ${state.targetScore.toLocaleString('en-US')}!`, 2.2);
+    if (state.stageScore >= state.targetScore) {
+      state.pendingAfterScore = 'CASH_OUT';
+      finishScoringPhase();
+    }
+  } else if (pot.id === 'PANORAMIX') {
+    if (state.activeCards.length >= getMaxCardSlots()) {
+      sfx.error();
+      showNotice('Arcana card dock is full — sell a card first!', 1.8);
+      return;
+    }
+    state.potions.splice(slotIdx, 1);
+    state.focusedPotionIdx = null;
+    const ownedIds = new Set(state.activeCards.map(c => c.cardId));
+    let pool = CARD_CATALOG.filter(c => !ownedIds.has(c.id));
+    if (pool.length === 0) pool = [...CARD_CATALOG];
+    const def = pickWeightedShopCard(pool, getTicketStacks('LUCKY_CLOVER'));
+    const card = createCardInstance(def.id);
+    card.bounce = 1.25;
+    card.flash = 1;
+    card.pulseColor = '#F59E0B';
+    state.activeCards.push(card);
+    if (card.cardId === 'JH') scaleAllPoolDicePips(2);
+    sfx.buyCard();
+    spawnPopup(640, 620, `+ ${def.name}!`, '#F59E0B', 24);
+    spawnParticles(640, 640, 24, ['#F59E0B', '#FDE68A', '#FFFFFF'], 80, 230);
+    showNotice(`Panoramix Cauldron conjured ${def.name}!`, 2.2);
+  } else if (pot.id === 'PSYHO') {
+    if (state.mode !== 'PLAYING') {
+      sfx.error();
+      showNotice('Use Psyho Tonic during a round!', 1.6);
+      return;
+    }
+    state.potions.splice(slotIdx, 1);
+    state.focusedPotionIdx = null;
+    const jhCount = state.activeCards.filter(c => c.cardId === 'JH').length;
+    const sixVal = 6 * Math.pow(2, jhCount);
+    if (Array.isArray(state.dice)) {
+      for (const d of state.dice) {
+        d.faces = d.faces.map(f => ({ ...f, value: sixVal }));
+        d.value = sixVal;
+        d.effectiveValue = sixVal;
+        d.hop = 1.1;
+        d.flash = 1.0;
+        d.flashColor = '#E879F9';
+      }
+    }
+    sfx.buyCard();
+    spawnPopup(640, 300, 'ROUND DICE → ALL 6s!', '#E879F9', 26);
+    spawnParticles(640, 330, 32, ['#E879F9', '#F5D0FE', '#FFFFFF'], 90, 260);
+    showNotice('Psyho Tonic turned every die and face into a 6 for this round!', 2.4);
     updateLivePreview();
   }
 }

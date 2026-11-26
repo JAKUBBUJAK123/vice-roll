@@ -1745,8 +1745,12 @@ export function drawCollectionScreen(ctx, state, uiCtx) {
             kind: 'GEM'
           }));
 
-    const cols = Math.min(4, Math.max(2, items.length));
-    const cardW = 236, cardH = 204, gapX = 24, gapY = 24;
+    const isDense = items.length > 8;
+    const cols = isDense ? 5 : Math.min(4, Math.max(2, items.length));
+    const cardW = isDense ? 192 : 236;
+    const cardH = isDense ? 196 : 204;
+    const gapX = isDense ? Math.floor((contentW - 60 - cols * cardW) / (cols - 1)) : 24;
+    const gapY = 24;
     const totalRowW = cols * cardW + (cols - 1) * gapX;
     const startX = contentX + (contentW - totalRowW) / 2;
     const rows = Math.ceil(items.length / cols);
