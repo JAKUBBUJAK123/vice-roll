@@ -28,8 +28,8 @@ export function startNewRun(clothId = null, difficultyId = null) {
   if (difficultyId) state.selectedDifficultyId = difficultyId;
   state.stage = 1;
   state.endless = false;
-  // state.money = 4 + (state.selectedClothId === 'WHITE_SILK' ? 20 : 0);
-  state.money =20000000000;
+  state.money = 4 + (state.selectedClothId === 'WHITE_SILK' ? 20 : 0);
+  // state.money =20000000000;
   state.tickets = {};
   state.dicePool = Array.from({ length: DICE_COUNT }, (_, i) => createPoolDie(i));
   state.currentTicketStake = 0;
